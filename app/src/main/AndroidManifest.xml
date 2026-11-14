@@ -85,9 +85,9 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_launcher_kilonova"
         android:label="@string/app_label"
-        android:roundIcon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_kilonova"
         android:supportsRtl="true"
         android:theme="@style/Theme.Supernova">
 
@@ -110,7 +110,7 @@
             android:name=".SettingsLauncherAlias"
             android:targetActivity=".SettingsActivity"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher_settings"
+            android:icon="@mipmap/ic_launcher_kilonova_settings"
             android:label="@string/settings_launcher_label">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
