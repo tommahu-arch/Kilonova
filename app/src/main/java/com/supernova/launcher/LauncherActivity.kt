@@ -2950,7 +2950,11 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
         if (!viewModel.state.value.prefs.popupNotifications) return
         val user = viewModel.appCatalog().userForSerial(userSerial) ?: Process.myUserHandle()
         SupernovaNotificationListener.previewsFor(packageName, user.hashCode()).forEach { preview ->
-            menu.addNotification(preview.title, preview.text) {
+            menu.addNotification(
+                preview.title,
+                preview.text,
+                onDismiss = { SupernovaNotificationListener.dismiss(preview.key) }
+            ) {
                 // The app's own tap intent; a stale one just no-ops.
                 runLogged("open notification") { preview.contentIntent?.let(PendingStarts::send) }
             }

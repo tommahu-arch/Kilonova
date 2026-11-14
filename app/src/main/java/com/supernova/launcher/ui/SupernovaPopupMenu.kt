@@ -1,5 +1,6 @@
 package com.supernova.launcher.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Typeface
@@ -11,7 +12,10 @@ import android.text.Spanned
 import android.text.style.StyleSpan
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -22,6 +26,7 @@ import com.supernova.launcher.R
 import com.supernova.launcher.data.SettingEnumSerializer
 import com.supernova.launcher.ui.theme.ResolvedSurface
 import android.os.Build
+import kotlin.math.abs
 
 // The optional extra rows an item popup can carry, configured per surface by
 // the popupItemsHome / popupItemsDrawer prefs.
@@ -243,15 +248,24 @@ class SupernovaPopupMenu(
     private var lastGroup: Group? = null
     private var rowCount = 0
 
+    // The notification rows still in the menu, and what stands around them
+    // (their tile group, or the rule or gap after them), so the last one to
+    // go takes those with it.
+    private var notificationRows = 0
+    private var notificationTiles: LinearLayout? = null
+    private var notificationTrailer: View? = null
+
     val hasRows: Boolean get() = rowCount > 0
 
     fun setOnDismissListener(listener: (() -> Unit)?) {
         popup.setOnDismissListener(listener?.let { PopupWindow.OnDismissListener(it) })
     }
 
-    // One "Title — text" line; tapping fires onClick (the notification's
-    // contentIntent) and dismisses.
-    fun addNotification(title: String, text: String, onClick: () -> Unit) {
+    // One "Title — text" entry of up to NOTIFICATION_MAX_LINES lines; tapping
+    // fires onClick (the notification's contentIntent) and dismisses the
+    // menu. Swiping it sideways fires onDismiss instead, to clear the
+    // notification, and the row leaves the menu, which stays open.
+    fun addNotification(title: String, text: String, onDismiss: () -> Unit, onClick: () -> Unit) {
         beginGroup(Group.NOTIFICATION)
         val label = SpannableStringBuilder().apply {
             if (title.isNotBlank()) {
@@ -261,8 +275,120 @@ class SupernovaPopupMenu(
             if (title.isNotBlank() && text.isNotBlank()) append("  —  ")
             if (text.isNotBlank()) append(text)
         }
-        addGroupRow(buildRow(label, iconView(R.drawable.ic_menu_notification, context.dp(18)), sub = true, onClick), content)
+        val row = buildRow(
+            label, iconView(R.drawable.ic_menu_notification, context.dp(18)), sub = true, onClick,
+            lines = NOTIFICATION_MAX_LINES, textMaxDp = NOTIFICATION_TEXT_MAX_DP
+        )
+        attachSwipeToDismiss(row) {
+            onDismiss()
+            removeNotificationRow(row)
+        }
+        addGroupRow(row, content)
+        notificationRows++
         rowCount++
+    }
+
+    // A sideways swipe, either way, dismisses the row: it follows the finger,
+    // and past SWIPE_DISMISS_SHARE of its width it leaves and onDismissed
+    // runs; short of that it springs back. A tap still reaches the row's own
+    // click. The menu's scroller is told to leave the gesture alone once it
+    // turns sideways.
+    @SuppressLint("ClickableViewAccessibility")
+    private fun attachSwipeToDismiss(row: View, onDismissed: () -> Unit) {
+        val slop = ViewConfiguration.get(context).scaledTouchSlop
+        var downX = 0f
+        var downY = 0f
+        var swiping = false
+        row.setOnTouchListener { view, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.rawX
+                    downY = event.rawY
+                    swiping = false
+                    false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - downX
+                    if (!swiping && abs(dx) > slop && abs(dx) > abs(event.rawY - downY)) {
+                        swiping = true
+                        // The row's own press (ripple, pending click) ends here.
+                        view.isPressed = false
+                        view.parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                    if (swiping) {
+                        view.translationX = dx
+                        view.alpha = 1f - (abs(dx) / view.width.coerceAtLeast(1)).coerceIn(0f, 1f) * SWIPE_FADE
+                    }
+                    swiping
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val wasSwiping = swiping
+                    swiping = false
+                    if (wasSwiping) {
+                        val dx = view.translationX
+                        if (event.actionMasked == MotionEvent.ACTION_UP && abs(dx) > view.width * SWIPE_DISMISS_SHARE) {
+                            // Gone for good: no second swipe while it leaves.
+                            view.setOnTouchListener(null)
+                            val off = if (dx > 0) view.width.toFloat() else -view.width.toFloat()
+                            view.animate().translationX(off).alpha(0f).setDuration(SWIPE_MS)
+                                .withEndAction { onDismissed() }.start()
+                        } else {
+                            view.animate().translationX(0f).alpha(1f).setDuration(SWIPE_MS).start()
+                        }
+                    }
+                    wasSwiping
+                }
+                else -> false
+            }
+        }
+    }
+
+    // A dismissed row leaves the menu. The last of them takes its group's
+    // surroundings with it, and with nothing left the menu closes.
+    private fun removeNotificationRow(row: View) {
+        (row.parent as? ViewGroup)?.removeView(row)
+        rowCount--
+        notificationRows--
+        if (notificationRows <= 0) {
+            notificationTiles?.let { content.removeView(it) }
+            notificationTrailer?.let { content.removeView(it) }
+            notificationTiles = null
+            notificationTrailer = null
+        }
+        if (rowCount <= 0) {
+            dismiss()
+            return
+        }
+        content.post { refit() }
+    }
+
+    // Where show() put the card, for refit().
+    private class Placement(
+        val left: Int,
+        val top: Int,
+        val bottom: Int,
+        val above: Boolean,
+        val windowWidth: Int,
+        val windowHeight: Int
+    )
+
+    private var placement: Placement? = null
+
+    // The window was sized to the menu as shown; after a row leaves, measure
+    // again and pull the window in around what is left. A menu opened above
+    // its anchor keeps its bottom edge where it was, so it stays next to it.
+    private fun refit() {
+        val placed = placement ?: return
+        if (!popup.isShowing) return
+        val pad = context.dp(SHADOW_PAD_DP)
+        val root = popup.contentView
+        root.measure(
+            View.MeasureSpec.makeMeasureSpec(placed.windowWidth, View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(placed.windowHeight, View.MeasureSpec.AT_MOST)
+        )
+        val cardHeight = root.measuredHeight - pad * 2
+        val top = if (placed.above) placed.bottom - cardHeight else placed.top
+        popup.update(placed.left - pad, top - pad, popup.width, root.measuredHeight)
     }
 
     fun addRow(label: CharSequence, @DrawableRes icon: Int, onClick: () -> Unit) {
@@ -466,8 +592,9 @@ class SupernovaPopupMenu(
         val navBar = androidx.core.view.ViewCompat.getRootWindowInsets(anchor)
             ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars())?.bottom ?: 0
         val spaceBelow = window.height - navBar - (location[1] + anchor.height)
+        val above = spaceBelow < cardHeight + gap
         val cardTop =
-            if (spaceBelow < cardHeight + gap) location[1] - cardHeight - gap
+            if (above) location[1] - cardHeight - gap
             else location[1] + anchor.height + gap
         // The application window's token, never the anchor's own: a folder
         // card is itself a panel window, and the window manager refuses a
@@ -475,10 +602,9 @@ class SupernovaPopupMenu(
         // long-press). The card fills the window, so its coordinates are the
         // window's too.
         val appWindow = (context as? android.app.Activity)?.window?.decorView ?: anchor
-        popup.showAtLocation(
-            appWindow, Gravity.NO_GRAVITY, cardLeft - pad,
-            cardTop.coerceAtLeast(edge) - pad
-        )
+        val top = cardTop.coerceAtLeast(edge)
+        placement = Placement(cardLeft, top, top + cardHeight, above, window.width, window.height)
+        popup.showAtLocation(appWindow, Gravity.NO_GRAVITY, cardLeft - pad, top - pad)
         return this
     }
 
@@ -492,7 +618,10 @@ class SupernovaPopupMenu(
         }
         // A tile group stands apart by its own margins: no divider or card.
         if (grouped && group != Group.MAIN) {
-            if (lastGroup != group) tileGroup = newTileGroup()
+            if (lastGroup != group) {
+                tileGroup = newTileGroup()
+                if (group == Group.NOTIFICATION) notificationTiles = tileGroup
+            }
             lastGroup = group
             return
         }
@@ -506,14 +635,15 @@ class SupernovaPopupMenu(
         }
         if (lastGroup != null && lastGroup != group && !afterTiles) {
             // Android 12 spaces groups instead of ruling them apart.
-            if (style == PopupMenuStyle.ANDROID12) {
-                content.addView(
-                    View(context),
-                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dp(6))
-                )
+            val separator = if (style == PopupMenuStyle.ANDROID12) {
+                View(context).apply {
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, context.dp(6))
+                }
             } else {
-                content.addView(divider())
+                divider()
             }
+            if (lastGroup == Group.NOTIFICATION) notificationTrailer = separator
+            content.addView(separator)
         }
         lastGroup = group
     }
@@ -535,7 +665,9 @@ class SupernovaPopupMenu(
         label: CharSequence,
         icon: ImageView,
         sub: Boolean,
-        onClick: () -> Unit
+        onClick: () -> Unit,
+        lines: Int = 1,
+        textMaxDp: Int = 220
     ): View {
         val row = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -572,8 +704,8 @@ class SupernovaPopupMenu(
         row.addView(
             FadingTextView(context).apply {
                 text = label
-                maxLines = 1
-                maxWidth = context.dp(220)
+                maxLines = lines
+                maxWidth = context.dp(textMaxDp)
                 setTextColor(if (sub) subTextColor else textColor)
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, if (sub) 13f else 14f)
             },
@@ -623,5 +755,15 @@ class SupernovaPopupMenu(
         private const val ICON_CENTER_DP = 28
         private const val LABEL_START_DP = 61
         private const val GROUP_INSET_DP = 8
+        // A notification wraps over up to three lines in a wider column than
+        // a label's, the last line fading out if it still runs over.
+        private const val NOTIFICATION_MAX_LINES = 3
+        private const val NOTIFICATION_TEXT_MAX_DP = 256
+        // Swiping a notification away: the share of its width it must travel
+        // to go, how far it fades on the way, and how long it takes to leave
+        // or return.
+        private const val SWIPE_DISMISS_SHARE = 0.35f
+        private const val SWIPE_FADE = 0.7f
+        private const val SWIPE_MS = 120L
     }
 }
