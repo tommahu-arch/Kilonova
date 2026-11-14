@@ -194,7 +194,12 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
                 override fun showPage(page: Int) = binding.workspacePager.setCurrentItem(
                     workspaceAdapter.centerPosition(page), Animations.scrollPages(viewModel.state.value.prefs)
                 )
-                override fun openSearch(query: String?) = if (query == null) search.open() else search.open(query)
+                override fun openSearch(query: String?) = when {
+                    query != null -> search.open(query)
+                    // Open search goes to One UI's Finder when picked (Kilonova).
+                    openSamsungFinder() -> Unit
+                    else -> search.open()
+                }
                 override fun launchApp(app: LaunchableApp) = this@LauncherActivity.launchApp(app)
                 override fun launchShortcut(packageName: String, shortcutId: String, userSerial: Long) =
                     this@LauncherActivity.launchShortcut(packageName, shortcutId, userSerial)
@@ -1485,7 +1490,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
         // arrives with its own field focused and the keyboard up, whatever
         // the drawer's keyboard setting. The bar's search chip and the
         // gestures still reach the global overlay.
-        binding.desktopSearchBar.onTap = { openDrawer(forSearch = true) }
+        binding.desktopSearchBar.onTap = { if (!openSamsungFinder()) openDrawer(forSearch = true) }
         binding.desktopSearchBar.onLongPress = { anchor -> showSearchBarMenu(anchor) }
     }
 
@@ -2481,6 +2486,13 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
         val radii = if (squareBottom) floatArrayOf(defaultRadius, defaultRadius, 0f, 0f) else null
         return com.supernova.launcher.ui.theme.SurfaceShapes.background(resolved.surface, radii, defaultRadius)
     }
+
+    // One UI's Finder in place of Kilonova's search, when Settings > Search
+    // picks it and the phone has it; false when search stays here.
+    // (Kilonova modification.)
+    private fun openSamsungFinder(): Boolean =
+        com.supernova.launcher.search.SamsungFinder.chosen(this, viewModel.state.value.prefs) &&
+            com.supernova.launcher.search.SamsungFinder.open(this)
 
     private fun openDrawer(forSearch: Boolean = false) {
         animateWallpaperZoom(1f)

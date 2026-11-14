@@ -423,6 +423,8 @@ data class LauncherPrefs(
     // Search window presentation: IMMERSIVE (full-screen, the original) or
     // WINDOW (floating rounded card).
     val searchWindowMode: SearchWindowMode = SearchWindowMode.IMMERSIVE,
+    // Kilonova's search or One UI's Finder (Kilonova modification).
+    val searchEngine: SearchEngine = SearchEngine.KILONOVA,
     // App results as one horizontal strip instead of vertical rows. On by
     // default.
     val searchAppsOneRow: Boolean = true,

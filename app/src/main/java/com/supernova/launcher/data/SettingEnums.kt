@@ -49,3 +49,14 @@ enum class SearchWindowMode {
 
     object Names : SettingEnumSerializer<SearchWindowMode>("SearchWindowMode", entries, IMMERSIVE)
 }
+
+// Which search the search bar and the Open search action start: Kilonova's
+// own, or One UI's Finder (SamsungFinder) where the phone has it.
+// (Kilonova modification.)
+@kotlinx.serialization.Serializable(with = SearchEngine.Names::class)
+enum class SearchEngine {
+    KILONOVA,
+    SAMSUNG_FINDER;
+
+    object Names : SettingEnumSerializer<SearchEngine>("SearchEngine", entries, KILONOVA)
+}
