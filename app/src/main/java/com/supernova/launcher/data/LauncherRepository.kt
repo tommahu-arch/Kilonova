@@ -264,7 +264,14 @@ class LauncherRepository(private val context: Context) {
         addNewWorkspaceItem(item, cols, rows, displace, mergeFolders = false)
     }
 
-    suspend fun addAppToDock(app: LaunchableApp, rank: Int, cols: Int, rows: Int, preferredPage: Int = 0) {
+    suspend fun addAppToDock(
+        app: LaunchableApp,
+        rank: Int,
+        cols: Int,
+        rows: Int,
+        preferredPage: Int = 0,
+        dockCount: Int = 0
+    ) {
         addNewItemToDock(
             LauncherItem(
                 id = id(),
@@ -276,7 +283,7 @@ class LauncherRepository(private val context: Context) {
                 className = app.className,
                 userSerial = app.userSerial
             ),
-            emptyList(), rank, cols, rows, preferredPage
+            emptyList(), rank, cols, rows, preferredPage, dockCount
         )
     }
 
@@ -288,7 +295,8 @@ class LauncherRepository(private val context: Context) {
         rank: Int,
         cols: Int,
         rows: Int,
-        preferredPage: Int = 0
+        preferredPage: Int = 0,
+        dockCount: Int = 0
     ) {
         addNewItemToDock(
             LauncherItem(
@@ -303,7 +311,7 @@ class LauncherRepository(private val context: Context) {
                 userSerial = app.userSerial,
                 iconBase64 = iconBase64
             ),
-            emptyList(), rank, cols, rows, preferredPage
+            emptyList(), rank, cols, rows, preferredPage, dockCount
         )
     }
 
@@ -313,11 +321,12 @@ class LauncherRepository(private val context: Context) {
         rank: Int,
         cols: Int,
         rows: Int,
-        preferredPage: Int = 0
+        preferredPage: Int = 0,
+        dockCount: Int = 0
     ) {
         if (apps.isEmpty()) return
         val folder = LauncherItem(id = id(), itemType = ItemType.FOLDER, container = ContainerType.DOCK, rank = rank, label = label)
-        addNewItemToDock(folder, folderMembers(folder.id, apps), rank, cols, rows, preferredPage)
+        addNewItemToDock(folder, folderMembers(folder.id, apps), rank, cols, rows, preferredPage, dockCount)
     }
 
     // A new item into a dock slot, with its folder members if it is a folder.
@@ -327,9 +336,12 @@ class LauncherRepository(private val context: Context) {
         rank: Int,
         cols: Int,
         rows: Int,
-        preferredPage: Int
+        preferredPage: Int,
+        dockCount: Int
     ) {
-        mutateFitted(cols, rows) { withNewDockItem(it, item, members, rank, cols, rows, preferredPage) }
+        mutateFitted(cols, rows) {
+            withNewDockItem(it, item, members, rank, cols, rows, preferredPage, dockCount)
+        }
     }
 
     suspend fun moveItemToWorkspace(
@@ -383,8 +395,11 @@ class LauncherRepository(private val context: Context) {
         }
     }
 
-    suspend fun moveItemToDock(itemId: String, rank: Int) {
-        mutate { current -> movedToDock(current, itemId, rank) }
+    // dockCount: slots per dock page; the icon in the slot, and its
+    // neighbours, slide along to make room (DockInsert). 0, or a page with no
+    // free slot, trades places as before.
+    suspend fun moveItemToDock(itemId: String, rank: Int, dockCount: Int = 0) {
+        mutate { current -> movedToDock(withDockGap(current, itemId, rank, dockCount) ?: current, itemId, rank) }
     }
 
     // A drop on the middle of a dock icon: into the folder there, or a new
@@ -1344,6 +1359,20 @@ class LauncherRepository(private val context: Context) {
             rank: Int,
             cols: Int,
             rows: Int,
+            preferredPage: Int,
+            dockCount: Int = 0
+        ): LauncherModel {
+            val room = withDockGap(current, null, rank, dockCount)
+            return withNewDockItemAt(room ?: current, item, members, rank, cols, rows, preferredPage)
+        }
+
+        private fun withNewDockItemAt(
+            current: LauncherModel,
+            item: LauncherItem,
+            members: List<LauncherItem>,
+            rank: Int,
+            cols: Int,
+            rows: Int,
             preferredPage: Int
         ): LauncherModel {
             val displaced = current.items.firstOrNull {
@@ -1467,6 +1496,17 @@ class LauncherRepository(private val context: Context) {
         }
 
         // moveItemToDock's model change, pure so the swaps can be tested.
+        // The dock with `rank` freed for a dropped item by sliding its
+        // neighbours along (DockInsert.plan), or null when that page has no
+        // free slot or dockCount is 0. movingId: the dropped item, if docked.
+        internal fun withDockGap(current: LauncherModel, movingId: String?, rank: Int, dockCount: Int): LauncherModel? {
+            if (dockCount <= 0) return null
+            val occupied = current.items.filter { it.container == ContainerType.DOCK }.associate { it.id to it.rank }
+            val moves = DockInsert.plan(occupied, movingId, rank, dockCount) ?: return null
+            if (moves.isEmpty()) return current
+            return current.copy(items = current.items.map { moves[it.id]?.let { r -> it.copy(rank = r) } ?: it })
+        }
+
         internal fun movedToDock(current: LauncherModel, itemId: String, rank: Int): LauncherModel {
             val moving = current.items.firstOrNull { it.id == itemId } ?: return current
             // Widgets live on pages only: the dock would host one squeezed

@@ -711,7 +711,8 @@ class LauncherViewModel(
         val prefs = state.value.prefs
         viewModelScope.launch {
             repository.addShortcutToDock(
-                app, shortcutId, label, iconBase64, rank, prefs.gridCols, prefs.gridRows, preferredPage
+                app, shortcutId, label, iconBase64, rank, prefs.gridCols, prefs.gridRows, preferredPage,
+                prefs.dockCount
             )
         }
     }
@@ -737,7 +738,7 @@ class LauncherViewModel(
     fun addFolderToDock(label: String, apps: List<LaunchableApp>, rank: Int, preferredPage: Int = 0) {
         val prefs = state.value.prefs
         viewModelScope.launch {
-            repository.addFolderToDock(label, apps, rank, prefs.gridCols, prefs.gridRows, preferredPage)
+            repository.addFolderToDock(label, apps, rank, prefs.gridCols, prefs.gridRows, preferredPage, prefs.dockCount)
         }
     }
 
@@ -763,7 +764,9 @@ class LauncherViewModel(
 
     fun addAppToDock(app: LaunchableApp, rank: Int, preferredPage: Int = 0) {
         val prefs = state.value.prefs
-        viewModelScope.launch { repository.addAppToDock(app, rank, prefs.gridCols, prefs.gridRows, preferredPage) }
+        viewModelScope.launch {
+            repository.addAppToDock(app, rank, prefs.gridCols, prefs.gridRows, preferredPage, prefs.dockCount)
+        }
     }
 
     // A placed widget onto `rect` (in cells, half ones included).
@@ -797,7 +800,10 @@ class LauncherViewModel(
         }
     }
 
-    fun moveItemToDock(itemId: String, rank: Int) = persist { repository.moveItemToDock(itemId, rank) }
+    fun moveItemToDock(itemId: String, rank: Int) {
+        val dockCount = state.value.prefs.dockCount
+        persist { repository.moveItemToDock(itemId, rank, dockCount) }
+    }
 
     fun mergeIntoDock(item: LauncherItem, rank: Int) = persist { repository.mergeIntoDock(item, rank) }
 
