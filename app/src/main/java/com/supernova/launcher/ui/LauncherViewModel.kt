@@ -631,6 +631,9 @@ class LauncherViewModel(
 
     fun setFolderSwipeToOpen(folderId: String, on: Boolean) = persist { repository.setFolderSwipeToOpen(folderId, on) }
 
+    fun setFolderTapAction(folderId: String, target: String?, label: String?) =
+        persist { repository.setFolderTapAction(folderId, target, label) }
+
     // What overlaps a placed item from below and above on its page.
     fun stacking(item: LauncherItem): WorkspaceGeometry.Stacking {
         val current = state.value

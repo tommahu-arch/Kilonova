@@ -34,7 +34,9 @@ object FolderEditSheet {
         // Opens the host's swipe action picker, calling back with the chosen
         // label (null = cleared) so the row can refresh without racing the
         // async model write.
-        onEditSwipe: (down: Boolean, onPicked: (String?) -> Unit) -> Unit
+        onEditSwipe: (down: Boolean, onPicked: (String?) -> Unit) -> Unit,
+        // The same for the Tap action, a swipe-to-open folder's.
+        onEditTap: (onPicked: (String?) -> Unit) -> Unit = {}
     ) {
         val binding = SheetAppEditBinding.inflate(LayoutInflater.from(context))
         val dialog = Sheets.open(context)
@@ -57,7 +59,12 @@ object FolderEditSheet {
         fun live(): LauncherItem? = viewModel.state.value.model.items.firstOrNull { it.id == folder.id }
         var swipeToOpen = live()?.swipeToOpen ?: folder.swipeToOpen
         var upLabel = live()?.swipeLabel
+        var tapLabel = live()?.tapLabel
         var downLabel = live()?.swipeLabelDown
+        // A locked desktop keeps the name and icon editable but hides the
+        // swipe rows, as an app's Edit does.
+        val locked = viewModel.state.value.prefs.desktopLocked
+        val swipeRows = if (locked) View.GONE else View.VISIBLE
         fun renderSwipes() {
             val none = context.getString(R.string.swipe_none)
             // While the switch is on the swipe up is the folder's own; the
@@ -66,10 +73,9 @@ object FolderEditSheet {
             binding.swipeUpRow.isEnabled = !swipeToOpen
             binding.swipeUpRow.alpha = if (swipeToOpen) DISABLED_ALPHA else 1f
             binding.swipeDownValue.text = downLabel ?: none
+            binding.tapActionValue.text = tapLabel ?: context.getString(R.string.tap_first_app)
+            binding.tapActionRow.visibility = if (isFolder && swipeToOpen && !locked) View.VISIBLE else View.GONE
         }
-        // A locked desktop keeps the name and icon editable but hides the
-        // swipe rows, as an app's Edit does.
-        val swipeRows = if (viewModel.state.value.prefs.desktopLocked) View.GONE else View.VISIBLE
         binding.swipeToOpenRow.visibility = if (isFolder) swipeRows else View.GONE
         binding.swipeUpRow.visibility = swipeRows
         binding.swipeDownRow.visibility = swipeRows
@@ -80,6 +86,9 @@ object FolderEditSheet {
             swipeToOpen = checked
             viewModel.setFolderSwipeToOpen(folder.id, checked)
             renderSwipes()
+        }
+        binding.tapActionRow.setOnClickListener {
+            onEditTap { picked -> tapLabel = picked; renderSwipes() }
         }
         binding.swipeUpRow.setOnClickListener {
             onEditSwipe(false) { picked -> upLabel = picked; renderSwipes() }

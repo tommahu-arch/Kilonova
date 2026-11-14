@@ -73,6 +73,11 @@ data class LauncherItem(
     // app in the folder and a swipe up opens it. A swipe-up action the folder
     // holds is kept, unused, until this goes off again.
     val swipeToOpen: Boolean = false,
+    // Folders only, "Tap action" under Swipe to open folder: what a tap
+    // launches, encoded like swipeAction (an app, a shortcut or a launcher
+    // action). Null is the first app in the folder.
+    val tapAction: String? = null,
+    val tapLabel: String? = null,
     // Widgets only, per-widget padding: this widget's inset in dp
     // inside its cells. Null follows the Widget padding setting.
     val widgetPadding: Int? = null,

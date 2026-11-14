@@ -248,6 +248,9 @@
     <string name="set_swipe_up_action">Set swipe up action</string>
     <string name="swipe_none">Nothing</string>
     <string name="swipe_up_title">Swipe up</string>
+    <string name="tap_action_title">Tap action</string>
+    <string name="set_tap_action">Set tap action</string>
+    <string name="tap_first_app">First app in folder</string>
     <string name="swipe_down_title">Swipe down</string>
     <string name="swipe_to_open_folder">Swipe to open folder</string>
     <string name="swipe_to_open_folder_summary">Tap opens the first app, swipe up opens the folder</string>
