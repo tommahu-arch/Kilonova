@@ -1,0 +1,6 @@
+The first Kilonova release: Supernova with a dock that moves, notifications you can swipe away, and Samsung Finder search.
+
+- Dock drag and drop: icons insert and shift with a live preview and slot targets
+- Notification rows in the icon menu: wider, up to 3 lines, swipe to dismiss
+- Samsung Finder as an optional search engine (Settings > Search)
+- New Kilonova and Kilonova Settings icons
