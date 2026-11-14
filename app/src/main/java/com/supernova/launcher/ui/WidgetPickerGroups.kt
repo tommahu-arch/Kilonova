@@ -245,7 +245,7 @@ object WidgetPickerGroups {
         return WidgetPickerGroup(
             packageName = context.packageName,
             label = context.getString(R.string.app_name),
-            icon = context.getDrawable(R.mipmap.ic_launcher)?.let(renderTile),
+            icon = context.getDrawable(R.mipmap.ic_launcher_kilonova)?.let(renderTile),
             widgets = emptyList(),
             shortcuts = actions + activities
         )

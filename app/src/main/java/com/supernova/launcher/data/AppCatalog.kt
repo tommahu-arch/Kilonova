@@ -147,7 +147,7 @@ class AppCatalog(
     private fun appIconDrawable(name: String): Drawable? {
         val app = AppIconSource.appOf(name) ?: return null
         return userForSerial(app.userSerial)?.let { user ->
-            resolveActivity(app.packageName, app.className, user)?.getIcon(0)
+            activityIcon(app.packageName, app.className, user)
         }
     }
 
@@ -258,12 +258,12 @@ class AppCatalog(
             ownIcon = pickedAppIcon && mono == null
         } else if (variant == "ORIGINAL") {
             // The app's own icon with no pack plate and no shape clip.
-            source = resolveActivity(app.packageName, app.className, user)?.getIcon(0) ?: return null
+            source = activityIcon(app.packageName, app.className, user) ?: return null
             decoration = null
         } else if (variant == "THEMED") {
             // Force the system monochrome look for just this app.
             val mono = monochromeThemedIcon(app.packageName, app.className, user, force = true)
-            source = mono ?: resolveActivity(app.packageName, app.className, user)?.getIcon(0) ?: return null
+            source = mono ?: activityIcon(app.packageName, app.className, user) ?: return null
             decoration = if (mono == null) iconPacks.decoration(packComponent) else null
         } else {
             // A themed icon from the active pack already looks final; only
@@ -272,7 +272,7 @@ class AppCatalog(
             // Pack theming wins; else the system monochrome layer when the
             // themed-icons pref is on; else the raw icon with pack plate.
             val mono = if (themed == null) monochromeThemedIcon(app.packageName, app.className, user) else null
-            source = themed ?: mono ?: resolveActivity(app.packageName, app.className, user)?.getIcon(0)
+            source = themed ?: mono ?: activityIcon(app.packageName, app.className, user)
                 ?: return null
             decoration = if (themed == null && mono == null) iconPacks.decoration(packComponent) else null
             finishedArt = themed != null
@@ -424,7 +424,7 @@ class AppCatalog(
         className: String,
         user: UserHandle,
         force: Boolean = false
-    ): Drawable? = resolveActivity(packageName, className, user)?.getIcon(0)?.let { themedIcon(it, force) }
+    ): Drawable? = activityIcon(packageName, className, user)?.let { themedIcon(it, force) }
 
     // An icon's themed look (API 33+), when Themed icons is on or `force`
     // asks for it; null when it is left as it is. Autogen (D8): one that
@@ -800,6 +800,19 @@ class AppCatalog(
 
     private fun dispatch(change: AppChange) {
         changeListeners.forEach { it(change) }
+    }
+
+    // An activity's icon as the system hands it to launchers - except
+    // Kilonova's own entries, taken from its own resources: One UI gives
+    // launchers a legacy icon already cut to its squircle, which cropped the
+    // frame drawn into Kilonova's icons. (Kilonova modification.)
+    private fun activityIcon(packageName: String, className: String, user: UserHandle): Drawable? {
+        val info = resolveActivity(packageName, className, user) ?: return null
+        if (packageName == context.packageName) {
+            val res = info.activityInfo.iconResource.takeIf { it != 0 } ?: info.applicationInfo.icon
+            if (res != 0) runCatching { context.getDrawable(res) }.getOrNull()?.let { return it }
+        }
+        return info.getIcon(0)
     }
 
     private fun resolveActivity(packageName: String, className: String, user: UserHandle): LauncherActivityInfo? {
