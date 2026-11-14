@@ -36,6 +36,26 @@ Gradle 9.7.1, AGP 9.4.1, Kotlin 2.4.20, JVM target 17.
 - Pull upstream later with `git fetch upstream && git merge upstream/dev`.
 - `gh` quirks: `gh repo rename` needs `--repo`; `gh repo fork --remote` only from inside a clone.
 
+## Release process
+Releases: https://github.com/tommahu-arch/Kilonova/releases (Kilonova-<version>.apk). Current: v0.0.2.
+Upstream's own tags (v0.1.7 ... v0.2.1) are in the repo; Kilonova's start at v0.0.1 and must not reuse them.
+- Version lives in `app/build.gradle.kts`: `versionName` (0.0.N) and `versionCode`. versionCode must only go up
+  (0.0.1 = 1, 0.0.2 = 22). Upstream's What's new files `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
+  already cover 2..21, so Kilonova's codes start at 22 and skip those; add `<versionCode>.txt` for every release
+  (it ships in the APK as `assets/<versionCode>.txt`; a missing file leaves About > What's new empty).
+- Signing: release key `~/.android/kilonova-release.jks`, passwords in the gitignored `keystore.properties` at the
+  repo root. Never commit either. Every release must use this one key or installs can't update; back both up.
+  Without the properties file `assembleRelease` produces an unsigned APK.
+- Flow: branch from `dev`, bump version + add the changelog, then `./gradlew testDebugUnitTest assembleRelease`
+  (R8 shrinking is on, so the release build can differ from debug). Check with `apksigner verify --print-certs`
+  (SHA-256 of the cert must be `132f71f6...0ecb6`) and `aapt2 dump badging` (package, versionCode/Name).
+  Copy `app/build/outputs/apk/release/app-release.apk` to `~/Kilonova-<version>.apk`, install it with
+  `adb install -r --user 0 ...`, and let Thomas test by hand before publishing.
+- Publish only on Thomas's go-ahead: merge into `dev` (`--no-ff`), annotated tag `v<version>` on the merge,
+  `git push origin dev v<version>`, then `gh release create v<version> ~/Kilonova-<version>.apk --repo
+  tommahu-arch/Kilonova --title "Kilonova <version>" --notes ...`. Delete the merged branch.
+- The debug build (`com.kilonova.launcher.debug`) and the release (`com.kilonova.launcher`) coexist on the phone.
+
 ## Requirements and status
 Decisions were made under Thomas Mahu's authority; do not change scope without asking.
 
@@ -70,6 +90,14 @@ Decisions were made under Thomas Mahu's authority; do not change scope without a
   stay internal. Falls back to Kilonova's search if Finder can't start. Code: `search/SamsungFinder.kt`,
   `SearchEngine` in `data/SettingEnums.kt`, `LauncherActivity.openSamsungFinder`,
   `SettingsCatalogue.hiddenUnderFinder`.
+- **Folder tap action (done, released in v0.0.2, release build installed on the phone; not yet hand-verified).**
+  With "Swipe to open folder" on, the folder's Edit sheet shows a "Tap action" row above Swipe up: the app,
+  shortcut or launcher action a tap launches; default is the first app in the folder, "Nothing" resets it.
+  Reuses the swipe action picker. Code: `LauncherItem.tapAction/tapLabel`, `LauncherRepository.setFolderTapAction`,
+  `ui/FolderEditSheet.kt` (`onEditTap`), `LauncherActivity.launchFolderTap` and `showSwipeActionPicker(tap = true)`.
+  The picked pick is kept when the switch goes off, like the swipe-up action.
+- **Releases.** v0.0.1 (versionCode 1): first release, R3, R4, R5, drawer icons. v0.0.2 (versionCode 22): folder tap action
+  and What's new text. Both published on GitHub, signed with the same key.
 
 ## Gotchas learned
 - One UI hands launchers (`LauncherActivityInfo.getIcon`) Kilonova's legacy icons already cut to its
