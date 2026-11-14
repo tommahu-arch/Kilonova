@@ -9,7 +9,9 @@ import com.supernova.launcher.data.IconShape
 import com.supernova.launcher.data.LauncherPrefs
 import com.supernova.launcher.data.LockMethod
 import com.supernova.launcher.data.Pref
+import com.supernova.launcher.data.SearchEngine
 import com.supernova.launcher.data.SearchWindowMode
+import com.supernova.launcher.search.SamsungFinder
 import kotlin.math.roundToInt
 import com.supernova.launcher.ui.BadgePosition
 import com.supernova.launcher.ui.BadgeStyle
@@ -263,6 +265,21 @@ object SettingsCatalogue {
     }
 
     // The accent: its dot on the row, and every option's dot in the menu.
+    // Kilonova: with Samsung Finder picked, Kilonova's own search rows (the
+    // search preview and the Providers group) hide; the Bars group stays.
+    private fun hiddenUnderFinder(items: List<SettingItem>): List<SettingItem> {
+        var inProviders = false
+        return items.onEach { item ->
+            if (item is SettingItem.Header) inProviders = item.title == R.string.group_providers
+            if (inProviders || item is SettingItem.Preview) {
+                val own = item.hiddenBy
+                item.hiddenWhen {
+                    own(it) ?: dependsOn(R.string.search_engine, it.searchEngine == SearchEngine.SAMSUNG_FINDER)
+                }
+            }
+        }
+    }
+
     private fun accentRow(context: Context, viewModel: LauncherViewModel, actions: Actions): SettingItem.Row {
         val accents = AccentColor.entries
         return SettingItem.Row(
@@ -345,6 +362,9 @@ object SettingsCatalogue {
         actions: Actions
     ): List<SettingsSection> {
         val rows = Rows(context, viewModel, actions)
+        // Kilonova: whether this phone has One UI's Finder, asked once per
+        // build of the list (a binder call).
+        val finderAvailable = SamsungFinder.available(context)
         return listOf(
         SettingsSection(
             R.string.settings_section_home,
@@ -962,8 +982,22 @@ object SettingsCatalogue {
         ),
         SettingsSection(
             R.string.settings_section_search,
-            listOf(
+            hiddenUnderFinder(listOf(
                 SettingItem.Preview(PreviewKind.SEARCH),
+                // Kilonova: Kilonova's own search, or One UI's Finder where
+                // the phone has it.
+                rows.choice(
+                    R.string.search_engine, SearchEngine.entries,
+                    { it.searchEngine },
+                    {
+                        if (it == SearchEngine.SAMSUNG_FINDER) {
+                            R.string.search_engine_samsung_finder
+                        } else {
+                            R.string.search_engine_kilonova
+                        }
+                    },
+                    visibleIf = { finderAvailable }
+                ) { viewModel.set(Pref.searchEngine, it) },
                 SettingItem.Header(R.string.group_providers),
                 rows.choiceText(
                     R.string.search_web_provider, WebProvider.entries,
@@ -1071,7 +1105,7 @@ object SettingsCatalogue {
                     },
                     onClick = { actions.openSection(R.string.drawer_search_bar) }
                 )
-            )
+            ))
         ),
         // The Drawer groups page, opened from the App drawer page's row;
         // back returns there. It has no rows of its own: SettingsActivity

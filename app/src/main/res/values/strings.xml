@@ -573,6 +573,9 @@
     <string name="group_pages">Pages</string>
     <string name="group_tabs">Tabs &amp; groups</string>
     <string name="group_providers">Providers</string>
+    <string name="search_engine">Search engine</string>
+    <string name="search_engine_kilonova">Kilonova</string>
+    <string name="search_engine_samsung_finder">Samsung Finder</string>
     <string name="group_bars">Search bars</string>
     <string name="group_icons">Icons</string>
     <string name="group_appearance">Appearance</string>

@@ -293,6 +293,7 @@ object Pref {
     val searchShortcuts = bool("search_shortcuts")
     val searchFolders = bool("search_folders")
     val searchWindowMode = choice("search_window_mode", SearchWindowMode.entries)
+    val searchEngine = choice("search_engine", SearchEngine.entries)
     val searchAppsOneRow = bool("search_apps_one_row")
     val searchContactCards = bool("search_contact_cards")
     val searchCards = bool("search_cards")

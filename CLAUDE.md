@@ -39,13 +39,13 @@ Gradle 9.7.1, AGP 9.4.1, Kotlin 2.4.20, JVM target 17.
 ## Requirements and status
 Decisions were made under Thomas Mahu's authority; do not change scope without asking.
 
-- **R1 Pixel-based capacity (todo).** Items per axis = `floor(shortSide / (iconSize * zoom + minGap))`;
+- **R1 Pixel-based capacity (on hold, 2026-11-14).** Items per axis = `floor(shortSide / (iconSize * zoom + minGap))`;
   `minGap` is a user setting in dp (default 8 dp is a guess). Replaces the hard limits in
   `data/GridLimits.kt` for desktop, dock, drawer, folders and the search page; the Labs "Big grid" toggle
   becomes unnecessary. Clamp stored values at layout time, never at storage time. Shortest screen side is
   the reference so counts are rotation-stable. No 90-degree icon rotation (idea dropped). The search page
   grid has not been inspected yet.
-- **R2 Dock cap and overflow (todo).** Cap is optional (none, or fixed N); effective limit = min(pixel
+- **R2 Dock cap and overflow (on hold, 2026-11-14).** Cap is optional (none, or fixed N); effective limit = min(pixel
   capacity, N). If capacity falls below the icon count, add a dock page and move the extra icons there;
   nothing is lost.
 - **R3 Dock drag and drop (done, verified on tablet, merged into `dev`).** Insert and shift neighbours with a
@@ -62,6 +62,14 @@ Decisions were made under Thomas Mahu's authority; do not change scope without a
   (`art/`, scaled into `mipmap-*dpi/ic_launcher_kilonova*.png`) as legacy, non-adaptive icons (Thomas's choice),
   so the frame shows exactly as drawn with the System icon shape; a chosen shape clips them, and themed mode
   uses a glyph generated from the picture. Upstream's adaptive `ic_launcher*` XMLs are left untouched.
+- **R5 Samsung Finder as search engine (done, verified on device, merged into `dev`).** Settings > Search
+  gets a radio "Search engine": Kilonova (default) or Samsung Finder, the latter offered only when the phone has
+  it (One UI 9+: `com.sec.android.app.launcher/.search.SearchActivity`, action SEARCH, extra `query`). With
+  Finder picked the search preview and the Providers group hide, and only the desktop search bar tap and the
+  Open search gesture go to Finder; Search-for-a-phrase gestures, the feed pull-down, the drawer and its search
+  stay internal. Falls back to Kilonova's search if Finder can't start. Code: `search/SamsungFinder.kt`,
+  `SearchEngine` in `data/SettingEnums.kt`, `LauncherActivity.openSamsungFinder`,
+  `SettingsCatalogue.hiddenUnderFinder`.
 
 ## Gotchas learned
 - One UI hands launchers (`LauncherActivityInfo.getIcon`) Kilonova's legacy icons already cut to its
