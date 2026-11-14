@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 // One notification line for the item popup menu: title/text plus the tap
 // intent. Bounded to PREVIEWS_PER_APP entries per app key.
 data class NotificationPreview(
+    val key: String,
     val title: String,
     val text: String,
     val contentIntent: PendingIntent?,
@@ -58,11 +59,13 @@ class SupernovaNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         connected = true
+        instance = this
         refresh()
     }
 
     override fun onListenerDisconnected() {
         connected = false
+        instance = null
         handler.removeCallbacks(refreshRunnable)
         state.value = BadgeState()
         previews = emptyMap()
@@ -167,6 +170,7 @@ class SupernovaNotificationListener : NotificationListenerService() {
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
         if (title.isBlank() && text.isBlank()) return null
         return NotificationPreview(
+            key = sbn.key,
             title = title,
             text = text,
             contentIntent = sbn.notification.contentIntent,
@@ -180,6 +184,10 @@ class SupernovaNotificationListener : NotificationListenerService() {
 
         @Volatile
         private var connected = false
+
+        // The running service, for clearing a notification from the shade.
+        @Volatile
+        private var instance: SupernovaNotificationListener? = null
 
         private val state = MutableStateFlow(BadgeState())
         val badgeState: StateFlow<BadgeState> = state
@@ -203,6 +211,13 @@ class SupernovaNotificationListener : NotificationListenerService() {
 
         fun faceFor(packageName: String, userHash: Int): BadgeFace? =
             state.value.faces["$userHash/$packageName"]
+
+        // Clears one notification, by the key its preview carries. Its
+        // removal comes back through onNotificationRemoved, so the badges
+        // follow on their own.
+        fun dismiss(key: String) {
+            runCatching { instance?.cancelNotification(key) }
+        }
 
         fun previewsFor(packageName: String, userHash: Int): List<NotificationPreview> =
             previews["$userHash/$packageName"].orEmpty()
