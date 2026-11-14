@@ -55,6 +55,6 @@ class BaselineProfileGenerator {
     }
 
     private companion object {
-        const val PACKAGE = "com.supernova.launcher"
+        const val PACKAGE = "com.kilonova.launcher"
     }
 }

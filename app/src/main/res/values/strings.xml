@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">Supernova</string>
+    <string name="app_name">Kilonova</string>
     <!-- The name the system shows (drawers, the default-home chooser, the
          accessibility and notification-access lists); debug builds rename it. -->
-    <string name="app_label">Supernova</string>
+    <string name="app_label">Kilonova</string>
     <string name="settings">Settings</string>
     <string name="set_default_launcher">Set as default launcher</string>
     <string name="add_page">Add page</string>
@@ -62,7 +62,7 @@
     <string name="widget_finish_setup">%1$s\nTap to finish setup</string>
     <string name="export_backup">Export backup</string>
     <string name="import_backup">Import backup</string>
-    <string name="import_backup_subtitle">A Supernova backup, or a backup file from another launcher</string>
+    <string name="import_backup_subtitle">A Kilonova backup, or a backup file from another launcher</string>
     <string name="backup_exported">Backup exported</string>
     <plurals name="backup_imported_count">
         <item quantity="one">Restored %1$d item</item>
@@ -77,8 +77,8 @@
         <item quantity="other">, %1$d widgets may need setting up again</item>
     </plurals>
     <plurals name="backup_left_out">
-        <item quantity="one">, left out %1$d item Supernova has no place for</item>
-        <item quantity="other">, left out %1$d items Supernova has no place for</item>
+        <item quantity="one">, left out %1$d item Kilonova has no place for</item>
+        <item quantity="other">, left out %1$d items Kilonova has no place for</item>
     </plurals>
     <string name="backup_export_failed">Export failed: %1$s</string>
     <string name="backup_import_failed">Import failed: %1$s</string>
@@ -94,13 +94,13 @@
     <string name="badges_need_access_summary">Tap to grant it, so badges can show</string>
     <string name="popup_needs_access_summary">Tap to grant it, so the menu can list notifications</string>
     <string name="notification_access_title">Allow notification access</string>
-    <string name="notification_access_badges">Badges are counted from your notifications, so Supernova needs notification access. They are read on this phone only.</string>
-    <string name="notification_access_popup">The long-press menu lists an app\'s notifications, so Supernova needs notification access. They are read on this phone only.</string>
+    <string name="notification_access_badges">Badges are counted from your notifications, so Kilonova needs notification access. They are read on this phone only.</string>
+    <string name="notification_access_popup">The long-press menu lists an app\'s notifications, so Kilonova needs notification access. They are read on this phone only.</string>
     <string name="open_settings">Open settings</string>
     <string name="not_now">Not now</string>
     <string name="continue_label">Continue</string>
     <string name="accessibility_needed_title">Turn on the accessibility service</string>
-    <string name="accessibility_needed_message">Lock screen, Recent apps and Quick settings need Supernova\'s accessibility service. Supernova uses it only for these actions.</string>
+    <string name="accessibility_needed_message">Lock screen, Recent apps and Quick settings need Kilonova\'s accessibility service. Kilonova uses it only for these actions.</string>
     <string name="gestures_need_accessibility">Needs the accessibility service</string>
     <string name="gestures_need_accessibility_summary">Some of these gestures do nothing until it is on. Tap to turn it on</string>
     <string name="device_admin_confirm_title">Lock with device admin?</string>
@@ -130,7 +130,7 @@
         <item quantity="other">%d shortcuts</item>
     </plurals>
     <string name="gestures">Gestures</string>
-    <string name="accessibility_description">Lets Supernova lock the screen from a gesture. Optional; no screen content is read.</string>
+    <string name="accessibility_description">Lets Kilonova lock the screen from a gesture. Optional; no screen content is read.</string>
     <string name="hidden_apps">Hidden apps</string>
     <string name="drawer_groups">Drawer groups</string>
     <string name="drawer_style">Drawer style</string>
@@ -291,11 +291,11 @@
     <string name="badge_position">Badge position</string>
     <string name="badge_size">Badge size</string>
     <string name="badge_test">Test notification badge</string>
-    <string name="badge_test_summary">Post a notification that will create a badge on the Supernova Settings icon</string>
+    <string name="badge_test_summary">Post a notification that will create a badge on the Kilonova Settings icon</string>
     <string name="badge_test_channel">Test notifications</string>
     <string name="badge_test_title">Test notification</string>
-    <string name="badge_test_text">Supernova Settings has a badge now. Tap to clear it.</string>
-    <string name="badge_test_blocked">Supernova isn\'t allowed to post notifications</string>
+    <string name="badge_test_text">Kilonova Settings has a badge now. Tap to clear it.</string>
+    <string name="badge_test_blocked">Kilonova isn\'t allowed to post notifications</string>
     <string name="badge_test_badges_off">Posted. Turn on Notification badges to see the badge.</string>
     <string name="shortcut_unusable">That shortcut couldn\'t be used</string>
     <string name="pos_top_right">Top right</string>
@@ -534,10 +534,10 @@
     <string name="about_whats_new_none">No release notes in this build.</string>
     <string name="about_report_issue">Report an issue</string>
     <string name="about_report_issue_summary">Opens a new issue on GitHub</string>
-    <string name="about_report_issue_body">\n\n---\nSupernova %1$s, Android %2$s (API %3$d), %4$s</string>
+    <string name="about_report_issue_body">\n\n---\nKilonova %1$s, Android %2$s (API %3$d), %4$s</string>
     <string name="about_no_browser">No app here opens links</string>
     <string name="about_source">Source code</string>
-    <string name="about_source_url" translatable="false">https://github.com/tanujnotes/Supernova</string>
+    <string name="about_source_url" translatable="false">https://github.com/tommahu-arch/Kilonova</string>
     <string name="crash_log">Crash log</string>
     <string name="crash_log_none">No crashes recorded</string>
     <plurals name="crash_log_count">
@@ -553,9 +553,9 @@
     <!-- Short, so the dialog's three buttons fit on one row. -->
     <string name="crash_log_share_button">Share</string>
     <string name="crash_log_clear">Clear</string>
-    <string name="crash_log_subject">Supernova crash log</string>
+    <string name="crash_log_subject">Kilonova crash log</string>
     <string name="crash_log_share_failed">Couldn\'t share the crash log: %1$s</string>
-    <string name="about_license_text">Supernova is free software, released under the GNU Affero General Public License v3.0. You may redistribute and modify it under the terms of that license; it comes with no warranty. The full text ships in the LICENSE file of the source repository.</string>
+    <string name="about_license_text">Kilonova is free software, a modified version of Supernova by tanujnotes, released under the GNU Affero General Public License v3.0. You may redistribute and modify it under the terms of that license; it comes with no warranty. The full text ships in the LICENSE file of the source repository.</string>
     <string name="section_home_subtitle">Grid, icons, labels and pages</string>
     <string name="section_dock_subtitle">Icons, background and pages</string>
     <string name="section_drawer_subtitle">Layout, style and groups</string>
@@ -698,7 +698,7 @@
     <!-- Group labels on the grouped settings pages (the root list and Style). -->
     <string name="settings_group_screens">Screens</string>
     <string name="settings_group_customize">Customize</string>
-    <string name="settings_group_app">Supernova</string>
+    <string name="settings_group_app">Kilonova</string>
     <string name="style_group_theme">Theme</string>
     <string name="style_group_surfaces">Surfaces</string>
     <string name="style_tab">Style</string>
@@ -736,7 +736,7 @@
     <string name="export_png">Export PNG</string>
     <string name="export_png_saved">PNG saved</string>
     <string name="export_png_failed">Couldn\'t save the PNG: %1$s</string>
-    <string name="export_png_lost">Couldn\'t save the PNG: Supernova restarted while the file picker was open</string>
+    <string name="export_png_lost">Couldn\'t save the PNG: Kilonova restarted while the file picker was open</string>
     <string name="labs_export_icons">Export icons</string>
     <string name="labs_export_icons_summary">Save every app\'s own icon to a zip, with an appfilter.xml of their component names to start an icon pack from</string>
     <string name="labs_export_icons_failed">Couldn\'t export icons: %1$s</string>
@@ -860,11 +860,11 @@
     <string name="action_open_feed">Feed page</string>
     <string name="action_voice_search">Voice search</string>
     <string name="action_private_space">Private space</string>
-    <string name="settings_launcher_label">Supernova Settings</string>
+    <string name="settings_launcher_label">Kilonova Settings</string>
     <string name="lock_method">Screen lock method</string>
     <string name="lock_method_accessibility">Accessibility service</string>
     <string name="lock_method_device_admin">Device admin</string>
-    <string name="lock_admin_explanation">Allows Supernova to lock the screen. It never wipes data or manages passwords.</string>
+    <string name="lock_admin_explanation">Allows Kilonova to lock the screen. It never wipes data or manages passwords.</string>
     <string name="lock_admin_note">Device admin locks instantly, but biometric unlock is disabled right after; turn admin off before uninstalling.</string>
     <string name="voice_search_unavailable">No voice search app found</string>
     <string name="page_number">Page %1$d</string>
@@ -1040,7 +1040,7 @@
     <string name="onboarding_design_home">Design my homescreen</string>
     <string name="onboarding_restore_backup">Restore backup</string>
     <string name="onboarding_skip_setup">Skip setup</string>
-    <string name="onboarding_skip_hint">To skip setting up Supernova, tap \'Skip setup\'</string>
+    <string name="onboarding_skip_hint">To skip setting up Kilonova, tap \'Skip setup\'</string>
     <string name="onboarding_previous">Previous</string>
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_look_title">Pick a starting point</string>
@@ -1090,8 +1090,8 @@
     <string name="reset_failed">Reset failed: %1$s</string>
     <string name="quick_start">Quick start</string>
     <string name="quick_start_subtitle">Run the first-run setup again</string>
-    <string name="restart_supernova">Restart Supernova</string>
-    <string name="restart_launcher_q">Restart Supernova?</string>
+    <string name="restart_supernova">Restart Kilonova</string>
+    <string name="restart_launcher_q">Restart Kilonova?</string>
     <string name="restart_launcher_message">Settings and the home screen close and open again. Nothing is lost.</string>
     <string name="restart">Restart</string>
     <!-- Popup row jumping straight to one app's widgets. -->

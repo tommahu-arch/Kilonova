@@ -1,36 +1,22 @@
-# Supernova Launcher 📱
+# Kilonova Launcher
 
-#### Infinitely Customizable Android Homescreen.
+A personal fork of [Supernova Launcher](https://github.com/tanujnotes/Supernova) by tanujnotes: an
+infinitely customizable, offline Android homescreen.
 
-You can bring your settings from other launchers to get started quickly.
+## What differs from Supernova
+* Dock, grid and folder sizes follow the screen instead of fixed limits (planned).
+* Dock drag-and-drop inserts and shifts neighbors (planned).
+* Notifications in the icon menu wrap over several lines and are dismissed with a swipe.
 
-[<img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-    alt="Get it on F-Droid"
-    height="80" align="middle">](https://f-droid.org/packages/com.supernova.launcher)
+Requirements and status live in the fork's requirements document.
 
-### Install
-* [F-Droid](https://f-droid.org/packages/com.supernova.launcher)
-* [Download APK](https://github.com/tanujnotes/Supernova/releases)
-* Play Store: Coming soon!
+## Build
+```
+./gradlew assembleDebug
+```
+Needs JDK 17 and the Android SDK with platform 37. The debug build installs as
+`com.kilonova.launcher.debug`.
 
-### Follow
-* X/Twitter [@SupernovaLaunch](https://x.com/supernovalaunch)
-* Reddit [r/SupernovaLauncher](https://www.reddit.com/r/SupernovaLauncher)
-
-### License
-* AGPL-3.0
-* See [LICENSE](LICENSE).
-
-### Developer
-* X/Twitter [@tanujnotes](https://x.com/tanujnotes)
-* Website [tanujnotes.com](https://tanujnotes.github.io)
-
-##
-
-Please ⭐️ if you can.
-
-Thank you!
-
-##
-
-*P.S. Xiaomi doesn't allow navigation gestures with third-party launchers. To fix that, try our free and [open-source](https://github.com/tanujnotes/Ogesture) app called [Ogesture](https://play.google.com/store/apps/details?id=com.ogesture).*
+## License
+AGPL-3.0, as Supernova. See [LICENSE](LICENSE). The original copyright notices are kept; this fork
+modifies the original work.
