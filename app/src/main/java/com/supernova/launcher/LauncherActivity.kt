@@ -2020,6 +2020,8 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
                 // drag-source hiding on a reused view - but an item whose
                 // drop is still settling stays hidden until it lands.
                 itemView.alpha = if (item.id == drag.settlingItemId) 0f else 1f
+                // A drag's shift preview slid it along; it is in its slot now.
+                itemView.translationX = 0f
                 slot.addView(
                     itemView,
                     FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
@@ -4401,7 +4403,9 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
                 // trade places with it - a folder goes into no folder - and
                 // the move leaves both where they are.
                 val model = viewModel.state.value.model
-                if (LauncherRepository.movedToDock(model, payload.itemId, rank) === model) return false
+                val roomy = LauncherRepository.withDockGap(model, payload.itemId, rank, viewModel.state.value.prefs.dockCount)
+                    ?: model
+                if (LauncherRepository.movedToDock(roomy, payload.itemId, rank) === roomy) return false
                 viewModel.moveItemToDock(payload.itemId, rank)
             }
             is DragPayload.DrawerApp, is DragPayload.DrawerShortcut, is DragPayload.DrawerFolder -> {
@@ -4412,7 +4416,8 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
                 // A new item onto an occupied slot sends that icon to the
                 // home screen, which needs a free cell somewhere.
                 val model = viewModel.state.value.model
-                val occupied = model.items.any { it.container == ContainerType.DOCK && it.rank == rank }
+                val occupied = model.items.any { it.container == ContainerType.DOCK && it.rank == rank } &&
+                    LauncherRepository.withDockGap(model, null, rank, viewModel.state.value.prefs.dockCount) == null
                 if (occupied && (0 until model.pageCount).none { viewModel.firstFreeWorkspaceCell(it) != null }) {
                     Toast.makeText(this, R.string.no_room_on_page, Toast.LENGTH_SHORT).show()
                     return false

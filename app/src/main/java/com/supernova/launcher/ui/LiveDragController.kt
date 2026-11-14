@@ -30,6 +30,7 @@ import androidx.core.view.isVisible
 import androidx.viewpager2.widget.ViewPager2
 import com.supernova.launcher.R
 import com.supernova.launcher.data.ContainerType
+import com.supernova.launcher.data.DockInsert
 import com.supernova.launcher.data.ItemType
 import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.data.LauncherItem
@@ -954,7 +955,12 @@ class LiveDragController(
             enterDragTarget(target)
         }
         if (target is DragTarget.Workspace) hoverWorkspace(target, rawX, rawY)
-        showDockMerge(if (target is DragTarget.Dock && dockMerge(target)) target.slot else null)
+        val dockTarget = target as? DragTarget.Dock
+        val merging = dockTarget != null && dockMerge(dockTarget)
+        showDockMerge(if (merging) dockTarget?.slot else null)
+        // Over the middle of an icon the drop makes a folder, and the row
+        // stays put; anywhere else in the dock it makes room.
+        showDockPreview(if (merging) null else dockTarget)
         trackEdgeFlip(rawX, rawY)
     }
 
@@ -993,6 +999,143 @@ class LiveDragController(
         }
     }
 
+    // The dock takes a drop from well above and around it, not only from
+    // the slots' own pixels: a finger lifted a little short of the dock, or
+    // over the gap between two icons, still lands in the row.
+    private fun dockDropZone(): Rect {
+        val zone = binding.dockBar.screenRect()
+        zone.inset(-context.dp(DOCK_DROP_SIDE_DP), 0)
+        zone.top -= context.dp(DOCK_DROP_ABOVE_DP)
+        zone.bottom += context.dp(DOCK_DROP_BELOW_DP)
+        return zone
+    }
+
+    // The slot a drop at this x is aimed at: the one under it, or the end
+    // slot when the finger is out past the row. The slot already hovered
+    // keeps the hover until the finger is well into the next one, so an icon
+    // held near a boundary does not flicker between two slots.
+    private fun dockSlotAt(rawX: Float): DragTarget.Dock? {
+        val x = (dragLayer.visualRect()?.centerX() ?: rawX).toInt()
+        val bar = binding.dockBar
+        val held = (dragTarget as? DragTarget.Dock)?.takeIf { it.slot.parent === bar }
+        if (held != null) {
+            val r = held.slot.screenRect()
+            val slack = (r.width() * DOCK_SLOT_HYSTERESIS).toInt()
+            if (x >= r.left - slack && x < r.right + slack) return held
+        }
+        var best: DragTarget.Dock? = null
+        var bestDistance = Int.MAX_VALUE
+        for (i in 0 until bar.childCount) {
+            val slot = bar.getChildAt(i)
+            val rank = slot.getTag(R.id.tag_dock_rank) as? Int ?: continue
+            val r = slot.screenRect()
+            val distance = when {
+                x < r.left -> r.left - x
+                x >= r.right -> x - r.right + 1
+                else -> 0
+            }
+            if (distance < bestDistance) {
+                bestDistance = distance
+                best = DragTarget.Dock(slot, rank)
+            }
+        }
+        return best
+    }
+
+    // ---- The dock's drop preview. Every slot shows as a faint target and the
+    // hovered one brighter; the icons that a drop would push along slide to
+    // where they would land. Only the views move - the model is written at
+    // the drop, and renderDock then rebuilds the row with each icon in its
+    // slot.
+    private var dockPreviewRank = NO_DOCK_PREVIEW
+
+    private fun showDockPreview(target: DragTarget.Dock?) {
+        val rank = target?.rank ?: NO_DOCK_PREVIEW
+        if (rank == dockPreviewRank) return
+        dockPreviewRank = rank
+        if (target == null) {
+            clearDockPreview(animate = true)
+            return
+        }
+        val prefs = viewModel.state.value.prefs
+        val bar = binding.dockBar
+        val count = prefs.dockCount.coerceAtLeast(1)
+        val movingId = (activeDragPayload as? DragPayload.ExistingItem)?.itemId
+        val ranks = viewModel.dockItems().associate { it.id to it.rank }
+        val plan = DockInsert.plan(ranks, movingId, rank, count)
+        // No free slot on this page: the drop trades places, and the icon
+        // that would be sent off the dock is shown dimmed and the slot amber.
+        val full = plan == null
+        val animate = Animations.enabled(prefs)
+        val duration = Animations.duration(prefs, DOCK_PREVIEW_MS)
+        for (i in 0 until bar.childCount) {
+            val slot = bar.getChildAt(i) as? ViewGroup ?: continue
+            val slotRank = slot.getTag(R.id.tag_dock_rank) as? Int ?: continue
+            slot.background = dockSlotBackground(
+                when {
+                    slot === target.slot && full -> DOCK_SLOT_FULL
+                    slot === target.slot -> DOCK_SLOT_TARGET
+                    else -> DOCK_SLOT_IDLE
+                }
+            )
+            for (c in 0 until slot.childCount) {
+                val child = slot.getChildAt(c)
+                val id = child.getTag(R.id.tag_item_id) as? String ?: continue
+                // The dragged icon is invisible at its source; leave it.
+                if (id == movingId) continue
+                val newRank = plan?.get(id)
+                val dx = if (newRank != null) (newRank - slotRank) * slot.width.toFloat() else 0f
+                val alpha = if (full && slot === target.slot) DOCK_DISPLACED_ALPHA else 1f
+                if (animate) {
+                    child.animate().cancel()
+                    child.animate().translationX(dx).alpha(alpha).setDuration(duration).start()
+                } else {
+                    child.translationX = dx
+                    child.alpha = alpha
+                }
+            }
+        }
+    }
+
+    // The row as it was: icons back in their slots, the targets gone.
+    // animate = false is the instant reset an ended drag makes (renderDock
+    // may already have rebuilt the row, which is fine).
+    private fun clearDockPreview(animate: Boolean) {
+        dockPreviewRank = NO_DOCK_PREVIEW
+        val prefs = viewModel.state.value.prefs
+        val bar = binding.dockBar
+        val movingId = (activeDragPayload as? DragPayload.ExistingItem)?.itemId
+        val duration = if (animate && Animations.enabled(prefs)) Animations.duration(prefs, DOCK_PREVIEW_MS) else 0L
+        for (i in 0 until bar.childCount) {
+            val slot = bar.getChildAt(i) as? ViewGroup ?: continue
+            slot.background = null
+            for (c in 0 until slot.childCount) {
+                val child = slot.getChildAt(c)
+                val id = child.getTag(R.id.tag_item_id) as? String ?: continue
+                if (id == movingId || id == settlingItemId) continue
+                child.animate().cancel()
+                if (duration > 0L) {
+                    child.animate().translationX(0f).alpha(1f).setDuration(duration).start()
+                } else {
+                    child.translationX = 0f
+                    child.alpha = 1f
+                }
+            }
+        }
+    }
+
+    // A drop was taken: the targets go, the pushed icons stay where they slid
+    // to until the rebuilt row has them.
+    private fun dropDockTargets() {
+        dockPreviewRank = NO_DOCK_PREVIEW
+        for (i in 0 until binding.dockBar.childCount) binding.dockBar.getChildAt(i).background = null
+    }
+
+    private fun dockSlotBackground(color: Int) = android.graphics.drawable.GradientDrawable().apply {
+        cornerRadius = context.dp(DOCK_SLOT_RADIUS_DP).toFloat()
+        setColor(color)
+    }
+
     private fun findDragTarget(rawX: Float, rawY: Float): DragTarget {
         val x = rawX.toInt()
         val y = rawY.toInt()
@@ -1005,12 +1148,8 @@ class LiveDragController(
         // it counts as a release over nothing, and a placed widget flies back.
         // Nor does a shortcut row from the add sheet.
         val dockable = activeDragPayload?.let(::dockable) != false
-        if (binding.dockBar.isVisible && dockable) {
-            for (i in 0 until binding.dockBar.childCount) {
-                val slot = binding.dockBar.getChildAt(i)
-                val rank = slot.getTag(R.id.tag_dock_rank) as? Int ?: continue
-                if (slot.screenRect().contains(x, y)) return DragTarget.Dock(slot, rank)
-            }
+        if (binding.dockBar.isVisible && dockable && dockDropZone().contains(x, y)) {
+            dockSlotAt(rawX)?.let { return it }
         }
         binding.workspacePager.currentWorkspaceCanvas()?.let { canvas ->
             val page = canvas.getTag(R.id.tag_page) as? Int ?: return@let
@@ -1226,6 +1365,7 @@ class LiveDragController(
         val settleMs = Animations.duration(prefs, DRAG_SETTLE_MS)
         val merge = target is DragTarget.Dock && dockMerge(target)
         showDockMerge(null)
+        if (target !is DragTarget.Dock) clearDockPreview(animate = true)
         // Leaving a workspace target here would wipe the reorder preview the
         // drop is about to commit; onDropToWorkspace clears it itself.
         if (dragTarget is DragTarget.Zone) leaveDragTarget(dragTarget)
@@ -1246,7 +1386,12 @@ class LiveDragController(
             // Widgets never dock; findDragTarget already keeps them off it.
             is DragTarget.Dock -> if (dockable(payload) && !desktopLocked) {
                 drops.cancelReorderPreview(animate = false)
-                if (host.handleDropToDock(payload, target.rank, merge)) {
+                // Kept as it is while the model write lands: the pushed icons
+                // are where they will be, and renderDock rebuilds them there.
+                // The targets go now.
+                val accepted = host.handleDropToDock(payload, target.rank, merge)
+                if (accepted) dropDockTargets() else clearDockPreview(animate = true)
+                if (accepted) {
                     dropHaptic(landed = true)
                     markSettling(payload)
                     dragLayer.settle(dockIconRect(target.slot, prefs), settleMs) { finishDrag(accepted = true) }
@@ -1461,6 +1606,7 @@ class LiveDragController(
         // over everything, taking every touch.
         releaseDragWindow()
         showDockMerge(null)
+        clearDockPreview(animate = false)
         cancelEdgeFlip()
         watchDragPage(false)
         hideDropTargetBar()
@@ -1473,6 +1619,7 @@ class LiveDragController(
     }
 
     private fun finishDrag(accepted: Boolean, flewBack: Boolean = false) {
+        clearDockPreview(animate = false)
         val dragged = activeDragPayload != null
         val sourcePage = dragSourcePage
         dragSourcePage = null
@@ -1696,6 +1843,22 @@ class LiveDragController(
         private const val DOCK_MERGE_ZONE = 0.3f
         private const val DOCK_MERGE_SCALE = 1.15f
         private const val DOCK_MERGE_MS = 120L
+        // The dock's drop zone: how far past the row it takes a drop, above
+        // (where a finger lifts short of it), to the sides and below.
+        private const val DOCK_DROP_ABOVE_DP = 72
+        private const val DOCK_DROP_SIDE_DP = 24
+        private const val DOCK_DROP_BELOW_DP = 48
+        // How far into the next slot a finger must go to leave the hovered one,
+        // as a share of the slot's width.
+        private const val DOCK_SLOT_HYSTERESIS = 0.2f
+        private const val DOCK_PREVIEW_MS = 140L
+        private const val DOCK_SLOT_RADIUS_DP = 16
+        private const val DOCK_SLOT_IDLE = 0x14FFFFFF
+        private const val DOCK_SLOT_TARGET = 0x40FFFFFF
+        // No free slot: the drop trades places and the dimmed icon leaves.
+        private const val DOCK_SLOT_FULL = 0x66FFB300
+        private const val DOCK_DISPLACED_ALPHA = 0.35f
+        private const val NO_DOCK_PREVIEW = Int.MIN_VALUE
         // How far a second finger travels sideways to turn the page.
         private const val FLIP_SWIPE_DP = 48
         private const val DRAG_GRID_FADE_MS = 150L
