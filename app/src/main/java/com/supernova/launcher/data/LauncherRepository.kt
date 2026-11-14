@@ -614,6 +614,16 @@ class LauncherRepository(private val context: Context) {
         }
     }
 
+    suspend fun setFolderTapAction(folderId: String, target: String?, label: String?) {
+        mutate { current ->
+            current.copy(
+                items = current.items.map {
+                    if (it.id == folderId && it.itemType == ItemType.FOLDER) it.copy(tapAction = target, tapLabel = label) else it
+                }
+            )
+        }
+    }
+
     suspend fun setSwipeAction(itemId: String, component: String?, label: String?, down: Boolean = false) {
         mutate { current ->
             current.copy(

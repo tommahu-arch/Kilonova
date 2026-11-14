@@ -200,7 +200,9 @@ class BackupRoundTripTest {
                 cellX = 0,
                 cellY = 0,
                 label = "Games",
-                swipeToOpen = true
+                swipeToOpen = true,
+                tapAction = "com.g/com.g.Main@0",
+                tapLabel = "G"
             ),
             LauncherItem(
                 id = "widget",

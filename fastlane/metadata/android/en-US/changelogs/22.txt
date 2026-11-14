@@ -1,0 +1,3 @@
+Folders can now launch an app of your choice on tap.
+
+- Swipe to open folder: new Tap action row in the folder's Edit sheet to pick the app, shortcut or action a tap launches (the first app stays the default)

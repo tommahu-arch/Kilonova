@@ -444,7 +444,12 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
 
     // An icon swipe waiting on an app's shortcut screen (the action picker's
     // Shortcuts tab), and where its answer goes.
-    private class PendingSwipeShortcut(val itemId: String, val down: Boolean, val onPicked: (String?) -> Unit)
+    private class PendingSwipeShortcut(
+        val itemId: String,
+        val down: Boolean,
+        val tap: Boolean,
+        val onPicked: (String?) -> Unit
+    )
     private var pendingSwipeShortcut: PendingSwipeShortcut? = null
 
     private val createSwipeShortcutLauncher =
@@ -461,7 +466,11 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
                 is com.supernova.launcher.ui.CreatedShortcut.Pinned -> created.target
                 is com.supernova.launcher.ui.CreatedShortcut.Legacy -> created.intentUri
             }
-            viewModel.setSwipeAction(pending.itemId, target, created.label, pending.down)
+            if (pending.tap) {
+                viewModel.setFolderTapAction(pending.itemId, target, created.label)
+            } else {
+                viewModel.setSwipeAction(pending.itemId, target, created.label, pending.down)
+            }
             pending.onPicked(created.label)
         }
 
@@ -2060,7 +2069,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
         val items = viewModel.dockItems().joinToString(";") { item ->
             "${item.id}:${item.rank}:${item.label}:${item.packageName}/${item.className}" +
                 // The swipes decide the icon's touch handling and its mark.
-                ":${item.swipeAction}:${item.swipeActionDown}:${item.swipeToOpen}" +
+                ":${item.swipeAction}:${item.swipeActionDown}:${item.swipeToOpen}:${item.tapAction}" +
                 PausedIcon.mark(state, item.userSerial) +
                 FolderIconDrawable.customIconKey(item) +
                 // A folder's icon is drawn from its members, which are not
@@ -3327,7 +3336,8 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
                 menu.addRow(getString(R.string.edit), R.drawable.ic_menu_edit) {
                     FolderEditSheet.show(
                         this, lifecycleScope, viewModel, item, ::pickPhoto,
-                        onEditSwipe = { down, onPicked -> showSwipeActionPicker(item, down) { onPicked(it) } }
+                        onEditSwipe = { down, onPicked -> showSwipeActionPicker(item, down) { onPicked(it) } },
+                        onEditTap = { onPicked -> showSwipeActionPicker(item, false, tap = true) { onPicked(it) } }
                     )
                 }
                 addExportPngRow(menu, anchor, item.label)
@@ -3457,7 +3467,8 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
         if (com.supernova.launcher.gesture.ActionShortcut.decode(item.intentUri) != null) {
             com.supernova.launcher.ui.FolderEditSheet.show(
                 this, lifecycleScope, viewModel, item, ::pickPhoto,
-                onEditSwipe = { down, onPicked -> showSwipeActionPicker(item, down) { onPicked(it) } }
+                onEditSwipe = { down, onPicked -> showSwipeActionPicker(item, down) { onPicked(it) } },
+                onEditTap = { onPicked -> showSwipeActionPicker(item, false, tap = true) { onPicked(it) } }
             )
         } else {
             showAppEditSheet(item, allowSwipe)
@@ -3761,16 +3772,21 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
     // page included), any app or one of its shortcuts, or an app's shortcut
     // screen. Targets are stored as LaunchTarget strings, action uris
     // (ActionShortcut) or intent URIs (CreatedShortcuts).
-    private fun showSwipeActionPicker(item: LauncherItem, down: Boolean, onPicked: (String?) -> Unit = {}) {
+    private fun showSwipeActionPicker(
+        item: LauncherItem,
+        down: Boolean,
+        tap: Boolean = false,
+        onPicked: (String?) -> Unit = {}
+    ) {
         val actions = com.supernova.launcher.gesture.ActionShortcut.choices + GestureAction.JUMP_TO_PAGE
         com.supernova.launcher.ui.ActionPickerSheet.show(
             this,
             viewModel,
-            getString(if (down) R.string.set_swipe_down_action else R.string.set_swipe_up_action),
+            getString(if (tap) R.string.set_tap_action else if (down) R.string.set_swipe_down_action else R.string.set_swipe_up_action),
             actions
         ) { pick ->
             fun save(target: String?, label: String?) {
-                viewModel.setSwipeAction(item.id, target, label, down)
+                if (tap) viewModel.setFolderTapAction(item.id, target, label) else viewModel.setSwipeAction(item.id, target, label, down)
                 onPicked(label)
             }
             when (pick) {
@@ -3791,7 +3807,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
                 is com.supernova.launcher.ui.ActionPick.Shortcut ->
                     save("${pick.app.packageName}|${pick.shortcutId}@${pick.app.userSerial}", pick.label)
                 is com.supernova.launcher.ui.ActionPick.Legacy -> {
-                    pendingSwipeShortcut = PendingSwipeShortcut(item.id, down, onPicked)
+                    pendingSwipeShortcut = PendingSwipeShortcut(item.id, down, tap, onPicked)
                     val create = Intent(Intent.ACTION_CREATE_SHORTCUT).setComponent(pick.component)
                     runLogged("open shortcut creator") { createSwipeShortcutLauncher.launch(create) }.onFailure {
                         pendingSwipeShortcut = null
@@ -4539,7 +4555,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
 
         val swipeToOpen = item.itemType == ItemType.FOLDER && item.swipeToOpen
         iconBinding.root.setOnClickListener {
-            if (swipeToOpen) launchFolderFirstItem(item, it) else launchItem(item, it)
+            if (swipeToOpen) launchFolderTap(item, it) else launchItem(item, it)
         }
         iconBinding.root.setOnLongClickListener { v ->
             if (liftPageFromItem(v, item)) return@setOnLongClickListener true
@@ -4672,9 +4688,14 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
         }
     }
 
-    // A swipe-to-open folder's tap: the first app its window shows, launched
-    // from the folder's icon. A folder with nothing to launch opens instead.
-    private fun launchFolderFirstItem(folder: LauncherItem, anchor: View) {
+    // A swipe-to-open folder's tap: the Tap action it holds, else the first
+    // app its window shows, launched from the folder's icon. A folder with
+    // nothing to launch opens instead.
+    private fun launchFolderTap(folder: LauncherItem, anchor: View) {
+        if (folder.tapAction != null) {
+            launchSwipeAction(folder, folder.tapAction, folder.tapLabel)
+            return
+        }
         val first = viewModel.folderFirstMember(folder.id)
         if (first == null) {
             showFolderPopup(anchor, folder)

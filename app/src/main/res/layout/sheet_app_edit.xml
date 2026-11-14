@@ -359,6 +359,22 @@
             <!-- Per-item swipe gestures. Shown only when editing a placed
                  workspace item (drawer edits are app-level and have no swipe
                  target). -->
+            <!-- Folders only, with Swipe to open folder on: what a tap
+                 launches (the first app unless one is picked). -->
+            <LinearLayout
+                android:id="@+id/tapActionRow"
+                style="@style/SheetRow"
+                android:visibility="gone">
+
+                <TextView
+                    style="@style/SheetRowTitle"
+                    android:text="@string/tap_action_title" />
+
+                <TextView
+                    android:id="@+id/tapActionValue"
+                    style="@style/SheetRowValue" />
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/swipeUpRow"
                 style="@style/SheetRow"

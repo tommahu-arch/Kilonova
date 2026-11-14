@@ -316,7 +316,7 @@ class WorkspacePagerAdapter(private val host: Host) : RecyclerView.Adapter<Recyc
             .joinToString(";") {
                 "${it.id}:${it.cellX},${it.cellY},${it.spanX},${it.spanY},${it.halfCells}," +
                     "${it.workspaceX},${it.workspaceY},${it.label}," +
-                    "${it.swipeAction},${it.swipeActionDown},${it.swipeToOpen},${it.widgetPadding}," +
+                    "${it.swipeAction},${it.swipeActionDown},${it.swipeToOpen},${it.tapAction},${it.widgetPadding}," +
                     // A restored widget's new id swaps its placeholder for the real view.
                     "${it.appWidgetId}" +
                     // Pausing work apps greys their icons.
