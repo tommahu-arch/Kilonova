@@ -410,6 +410,8 @@ data class LauncherPrefs(
     // labelConfig can still allow two lines.
     val labelSingleLine: Boolean = true,
     val dockInfiniteScroll: Boolean = false,
+    // Lock dock: nothing in the dock, or in a folder in it, is added, moved or removed.
+    val dockLocked: Boolean = false,
     // When on, the dock follows iconScale and the dock scale slider hides.
     // On by default.
     val dockMatchDesktop: Boolean = true,

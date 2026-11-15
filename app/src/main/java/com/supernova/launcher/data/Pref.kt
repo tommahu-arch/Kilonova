@@ -283,6 +283,7 @@ object Pref {
     val labelFont = choice("label_font", LabelFont.entries)
     val labelSingleLine = bool("label_single_line")
     val dockInfiniteScroll = bool("dock_infinite_scroll")
+    val dockLocked = bool("dock_locked")
     val dockMatchDesktop = bool("dock_match_desktop")
     val dockOverlay = bool("dock_overlay")
     val dockAutoClose = bool("dock_auto_close")

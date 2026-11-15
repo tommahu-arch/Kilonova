@@ -63,7 +63,8 @@ object FolderEditSheet {
         var downLabel = live()?.swipeLabelDown
         // A locked desktop keeps the name and icon editable but hides the
         // swipe rows, as an app's Edit does.
-        val locked = viewModel.state.value.prefs.desktopLocked
+        val locked = viewModel.state.value.prefs.desktopLocked ||
+            DesktopLock.dockLocks(viewModel.state.value.prefs, viewModel.state.value.model, folder)
         val swipeRows = if (locked) View.GONE else View.VISIBLE
         fun renderSwipes() {
             val none = context.getString(R.string.swipe_none)

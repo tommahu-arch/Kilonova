@@ -604,6 +604,8 @@
     <string name="opacity_percent">%1$d%%</string>
     <string name="color_with_opacity">%1$s, %2$d%%</string>
     <string name="color_custom">Custom</string>
+    <string name="color_custom_pick">Custom color\u2026</string>
+    <string name="color_hex_hint">Hex color, e.g. 3366FF</string>
     <string name="color_hue">Hue</string>
     <string name="color_saturation">Saturation</string>
     <string name="color_brightness">Brightness</string>
@@ -698,6 +700,8 @@
     <string name="font_serif">Serif</string>
     <string name="font_monospace">Monospace</string>
     <string name="dock_infinite_scroll">Infinite scroll</string>
+    <string name="dock_locked">Lock dock</string>
+    <string name="dock_locked_summary">The dock can no longer be changed: nothing is added, moved or removed</string>
     <string name="dock_match_desktop">Match desktop icon scale</string>
     <string name="dock_overlay">Display as overlay</string>
     <string name="dock_overlay_summary">The dock sits over the home screen instead of below it</string>

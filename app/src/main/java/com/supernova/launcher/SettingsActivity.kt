@@ -455,6 +455,7 @@ class SettingsActivity : AppCompatActivity() {
                     .show()
             },
             openPaletteDialog = ::showPaletteSourcePicker,
+            promptHexColor = ::promptHexColor,
             openStylePicker = { surfaceId -> StylePickerSheet.show(this, viewModel, surfaceId) },
             showAutoBackups = ::showAutoBackups,
             editGesture = ::showActionPicker,
@@ -1112,6 +1113,27 @@ class SettingsActivity : AppCompatActivity() {
             viewModel.set(Pref.paletteSource, mode)
             if (mode == PaletteSourceMode.CUSTOM) promptPaletteSeed()
         }
+    }
+
+    // A hex typed in: RRGGBB, or AARRGGBB to set the opacity too. Stored as #AARRGGBB.
+    private fun promptHexColor(title: Int, stored: String, onPick: (String) -> Unit) {
+        val input = EditText(this).apply {
+            hint = getString(R.string.color_hex_hint)
+            setText(stored.removePrefix("#").let { if (it.length == 8 && it.startsWith("FF", true)) it.substring(2) else it })
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setView(com.supernova.launcher.ui.DialogField.wrap(input))
+            .setPositiveButton(R.string.save) { _, _ ->
+                val digits = input.text?.toString().orEmpty().trim().removePrefix("#")
+                if ((digits.length == 6 || digits.length == 8) && digits.toLongOrNull(16) != null) {
+                    onPick("#" + (if (digits.length == 6) "FF" else "") + digits.uppercase())
+                } else {
+                    Toast.makeText(this, R.string.palette_seed_invalid, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun promptPaletteSeed() {

@@ -185,6 +185,15 @@ class LiveDragController(
     private val desktopLocked: Boolean
         get() = viewModel.state.value.prefs.desktopLocked
 
+    private val dockLocked: Boolean
+        get() = viewModel.state.value.prefs.dockLocked
+
+    // Under Lock dock a dock item (or a docked folder's member) isn't lifted.
+    private fun lockedByDock(payload: DragPayload): Boolean =
+        payload is DragPayload.ExistingItem && viewModel.state.value.let {
+            DesktopLock.dockLocks(it.prefs, it.model, itemById(payload.itemId))
+        }
+
     // A press is armed (menu up, finger still down); a drag is in flight.
     val isArmed: Boolean get() = pendingDrag != null
     val isActive: Boolean get() = activeDragPayload != null || windowDrag != null
@@ -628,9 +637,10 @@ class LiveDragController(
         anchor.parent?.requestDisallowInterceptTouchEvent(true)
         // A locked desktop long-press is menu-only, so nothing can be moved
         // by accident.
-        if (desktopLocked || !draggable) {
+        val locked = desktopLocked || lockedByDock(payload)
+        if (locked || !draggable) {
             activeItemPopup?.makeModal()
-            if (desktopLocked && draggable) {
+            if (locked && draggable) {
                 lockedProbeX = pressRawX
                 lockedProbeY = pressRawY
             }
@@ -823,7 +833,7 @@ class LiveDragController(
     // What the add sheet hands out (a widget, a shortcut row) goes to the
     // home screen only, as does a placed widget.
     private fun dockable(payload: DragPayload): Boolean =
-        !isWidgetPayload(payload) && payload !is DragPayload.NewShortcut
+        !isWidgetPayload(payload) && payload !is DragPayload.NewShortcut && !dockLocked
 
     // What the drag layer carries: an icon drawn at the size it is seen (the
     // picture starts exactly over it), a widget's own frame, or a picker
@@ -1747,7 +1757,7 @@ class LiveDragController(
 
     private fun setupDropTargets() {
         dropZoneActions[binding.dropRemove] = { payload ->
-            if (payload is DragPayload.ExistingItem && !desktopLocked) {
+            if (payload is DragPayload.ExistingItem && !desktopLocked && !lockedByDock(payload)) {
                 itemById(payload.itemId)?.let(host::removeItemWithUndo)
             }
         }
