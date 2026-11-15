@@ -79,7 +79,7 @@ class ActionPickerSheet private constructor(
         LayoutInflater.from(context).inflate(R.layout.sheet_handle, root, true)
         root.addView(TextView(context, null, 0, R.style.SheetTitle).apply { text = title })
         val search = EditText(context).apply {
-            hint = context.getString(R.string.search_apps)
+            hint = context.getString(R.string.search_hint)
             isSingleLine = true
             val padH = context.dp(SEARCH_PAD_H_DP)
             val padV = context.dp(SEARCH_PAD_V_DP)
