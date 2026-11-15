@@ -52,6 +52,9 @@ android {
         // class name and the settings alias) stays com.supernova.launcher.
         debug {
             applicationIdSuffix = ".debug"
+            // Same key as release, so debug and release builds are signed alike.
+            // Falls back to the default debug key without keystore.properties.
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
         release {
             signingConfig = signingConfigs.findByName("release")
