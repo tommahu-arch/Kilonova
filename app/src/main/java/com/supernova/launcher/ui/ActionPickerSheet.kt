@@ -9,11 +9,13 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.withStyledAttributes
+import androidx.core.widget.doAfterTextChanged
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -21,6 +23,7 @@ import com.google.android.material.tabs.TabLayout
 import com.supernova.launcher.R
 import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.gesture.GestureAction
+import com.supernova.launcher.search.AppMatcher
 import com.supernova.launcher.ui.settings.EnumLabels
 
 // What the action picker hands back. A Legacy pick still has to run the
@@ -51,6 +54,18 @@ class ActionPickerSheet private constructor(
     private val sheet = Sheets.open(context)
     private val adapter = RowAdapter(context.getColor(R.color.textPrimary))
 
+    // The search box filters whichever tab is showing, and keeps its text
+    // across a tab switch. Each tab's rows are built once: the app tab
+    // renders every icon.
+    private var tab = 0
+    private var query = ""
+    private val tabRows = HashMap<Int, List<Row>>()
+
+    private fun showRows() {
+        val rows = tabRows.getOrPut(tab) { rowsFor(tab) }
+        adapter.rows = if (query.isBlank()) rows else AppMatcher.filter(rows, query) { it.label.toString() }
+    }
+
     private fun picked(pick: ActionPick) {
         sheet.dismiss()
         onPick(pick)
@@ -63,6 +78,19 @@ class ActionPickerSheet private constructor(
         }
         LayoutInflater.from(context).inflate(R.layout.sheet_handle, root, true)
         root.addView(TextView(context, null, 0, R.style.SheetTitle).apply { text = title })
+        val search = EditText(context).apply {
+            hint = context.getString(R.string.search_apps)
+            isSingleLine = true
+            val padH = context.dp(SEARCH_PAD_H_DP)
+            val padV = context.dp(SEARCH_PAD_V_DP)
+            setPadding(padH, padV, padH, padV)
+        }
+        root.addView(
+            DialogField.wrap(search),
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                bottomMargin = context.dp(BELOW_SEARCH_DP)
+            }
+        )
         val tabs = TabLayout(context).apply {
             tabMode = TabLayout.MODE_FIXED
             tabGravity = TabLayout.GRAVITY_FILL
@@ -81,14 +109,21 @@ class ActionPickerSheet private constructor(
         root.addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, context.dp(LIST_HEIGHT_DP)))
         tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
-                adapter.rows = rowsFor(tab.position)
+                this@ActionPickerSheet.tab = tab.position
+                showRows()
                 list.scrollToPosition(0)
             }
 
             override fun onTabUnselected(tab: TabLayout.Tab) = Unit
             override fun onTabReselected(tab: TabLayout.Tab) = Unit
         })
-        adapter.rows = rowsFor(0)
+        search.doAfterTextChanged { text ->
+            query = text?.toString().orEmpty()
+            showRows()
+            list.scrollToPosition(0)
+        }
+        showRows()
+        sheet.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         sheet.setContentView(root)
         sheet.show()
     }
@@ -232,6 +267,9 @@ class ActionPickerSheet private constructor(
 
     companion object {
         private const val LIST_HEIGHT_DP = 440
+        private const val SEARCH_PAD_H_DP = 16
+        private const val SEARCH_PAD_V_DP = 14
+        private const val BELOW_SEARCH_DP = 8
         private const val BOTTOM_PADDING_DP = 8
         private const val ROW_MIN_HEIGHT_DP = 56
         private const val ROW_GUTTER_DP = 24
