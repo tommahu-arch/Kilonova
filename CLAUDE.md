@@ -2,7 +2,8 @@
 
 Personal fork of the Android launcher Supernova (https://github.com/tanujnotes/Supernova, AGPL-3.0).
 Fork: https://github.com/tommahu-arch/Kilonova (`origin`); upstream is `tanujnotes/Supernova` (`upstream`).
-Work happens on `dev` (upstream's active branch), one branch per requirement, merged after testing.
+Kilonova keeps one long-lived branch, `main` (also the GitHub default); upstream's active branch is `upstream/dev`.
+Work is one short-lived branch per requirement, merged into `main` after testing, then deleted.
 
 ## Licence rules
 - Stays AGPL-3.0. Keep upstream copyright/licence notices; mark modified files as modified.
@@ -31,7 +32,7 @@ Gradle 9.7.1, AGP 9.4.1, Kotlin 2.4.20, JVM target 17.
   tablet; say what to check by hand.
 
 ## Git workflow
-- `git switch dev && git switch -c <branch>` per requirement; small commits.
+- `git switch main && git switch -c <branch>` per requirement; small commits.
 - Stage with `git add -u` (not `-A`): untracked patch/scratch files must not be committed.
 - Pull upstream later with `git fetch upstream && git merge upstream/dev`.
 - `gh` quirks: `gh repo rename` needs `--repo`; `gh repo fork --remote` only from inside a clone.
@@ -46,13 +47,13 @@ Upstream's own tags (v0.1.7 ... v0.2.1) are in the repo; Kilonova's start at v0.
 - Signing: release key `~/.android/kilonova-release.jks`, passwords in the gitignored `keystore.properties` at the
   repo root. Never commit either. Every release must use this one key or installs can't update; back both up.
   Without the properties file `assembleRelease` produces an unsigned APK.
-- Flow: branch from `dev`, bump version + add the changelog, then `./gradlew testDebugUnitTest assembleRelease`
+- Flow: branch from `main`, bump version + add the changelog, then `./gradlew testDebugUnitTest assembleRelease`
   (R8 shrinking is on, so the release build can differ from debug). Check with `apksigner verify --print-certs`
   (SHA-256 of the cert must be `132f71f6...0ecb6`) and `aapt2 dump badging` (package, versionCode/Name).
   Copy `app/build/outputs/apk/release/app-release.apk` to `~/Kilonova-<version>.apk`, install it with
   `adb install -r --user 0 ...`, and let Thomas test by hand before publishing.
-- Publish only on Thomas's go-ahead: merge into `dev` (`--no-ff`), annotated tag `v<version>` on the merge,
-  `git push origin dev v<version>`, then `gh release create v<version> ~/Kilonova-<version>.apk --repo
+- Publish only on Thomas's go-ahead: merge into `main` (`--no-ff`), annotated tag `v<version>` on the merge,
+  `git push origin main v<version>`, then `gh release create v<version> ~/Kilonova-<version>.apk --repo
   tommahu-arch/Kilonova --title "Kilonova <version>" --notes ...`. Delete the merged branch.
 - The debug build (`com.kilonova.launcher.debug`) and the release (`com.kilonova.launcher`) coexist on the phone.
 
@@ -68,7 +69,7 @@ Decisions were made under Thomas Mahu's authority; do not change scope without a
 - **R2 Dock cap and overflow (on hold, 2026-11-14).** Cap is optional (none, or fixed N); effective limit = min(pixel
   capacity, N). If capacity falls below the icon count, add a dock page and move the extra icons there;
   nothing is lost.
-- **R3 Dock drag and drop (done, verified on tablet, merged into `dev`).** Insert and shift neighbours with a
+- **R3 Dock drag and drop (done, verified on tablet, merged into `main`).** Insert and shift neighbours with a
   live preview, visible slot targets, nearest-slot snapping with hysteresis, large drop zone, clear
   feedback when the page is full. Code: `ui/LiveDragController.kt` (target finding, preview),
   `data/DockInsert.kt` (pure shift plan), `LauncherRepository.withDockGap/movedToDock`,
@@ -78,11 +79,11 @@ Decisions were made under Thomas Mahu's authority; do not change scope without a
   swipe left or right to dismiss via `cancelNotification`. Code: `notification/SupernovaNotificationListener.kt`
   (`dismiss(key)`), `ui/SupernovaPopupMenu.kt` (`addNotification`, swipe, refit).
   Persistent/non-clearable notifications are already excluded from badges by `BadgeCounting`, so no hide filter.
-- **Drawer icons (done, verified on device, merged into `dev`).** App and Settings use Thomas's framed PNGs
+- **Drawer icons (done, verified on device, merged into `main`).** App and Settings use Thomas's framed PNGs
   (`art/`, scaled into `mipmap-*dpi/ic_launcher_kilonova*.png`) as legacy, non-adaptive icons (Thomas's choice),
   so the frame shows exactly as drawn with the System icon shape; a chosen shape clips them, and themed mode
   uses a glyph generated from the picture. Upstream's adaptive `ic_launcher*` XMLs are left untouched.
-- **R5 Samsung Finder as search engine (done, verified on device, merged into `dev`).** Settings > Search
+- **R5 Samsung Finder as search engine (done, verified on device, merged into `main`).** Settings > Search
   gets a radio "Search engine": Kilonova (default) or Samsung Finder, the latter offered only when the phone has
   it (One UI 9+: `com.sec.android.app.launcher/.search.SearchActivity`, action SEARCH, extra `query`). With
   Finder picked the search preview and the Providers group hide, and only the desktop search bar tap and the
