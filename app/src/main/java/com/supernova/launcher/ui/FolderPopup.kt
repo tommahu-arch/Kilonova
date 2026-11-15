@@ -80,7 +80,10 @@ class FolderPopup(private val context: Context) {
             // Style-engine corners replace the stock drawable outright.
             val density = context.resources.displayMetrics.density
             binding.folderCard.background = com.supernova.launcher.ui.theme.SurfaceShapes.background(
-                surfaceColor ?: context.getColor(com.supernova.launcher.R.color.drawerBackground),
+                surfaceColor ?: android.util.TypedValue().let {
+                    context.theme.resolveAttribute(com.supernova.launcher.R.attr.lookDrawer, it, true)
+                    it.data
+                },
                 FloatArray(4) { cornerRadiiDp[it] * density },
                 context.dp(24).toFloat()
             )

@@ -383,6 +383,8 @@ data class LauncherPrefs(
     // Badge folder icons with the summed unread count of their members.
     val folderBadges: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    // Dark theme in true black, for AMOLED screens.
+    val trueBlack: Boolean = false,
     // SCHEDULE mode's dark window, minutes since midnight; end < start wraps
     // past midnight (defaults: 19:00-07:00).
     val themeScheduleStart: Int = 1140,

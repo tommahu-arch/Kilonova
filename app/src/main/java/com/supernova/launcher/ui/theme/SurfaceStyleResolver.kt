@@ -95,7 +95,7 @@ object Styles {
             Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
         val key = Key(
             prefs.styleConfig, prefs.paletteSource.name, prefs.paletteSeed, night,
-            prefs.accentColor.name, prefs.drawerBgColor, prefs.folderBgColor,
+            prefs.accentColor.name + prefs.trueBlack, prefs.drawerBgColor, prefs.folderBgColor,
             prefs.drawerBgOpacity, prefs.dockBgOpacity, wallpaperGeneration
         )
         cachedStyles?.let { if (key == cachedKey) return it }
@@ -105,7 +105,7 @@ object Styles {
         val accent = ThemeEngine.accentColor(context, prefs.accentColor)
         val themeText = context.getColor(R.color.textPrimary)
         val onWallpaper = context.getColor(R.color.onWallpaper)
-        val themeSurface = context.getColor(R.color.surface)
+        val themeSurface = ThemeEngine.surfaceColor(context, prefs)
 
         fun resolved(
             id: SurfaceId,
@@ -141,7 +141,7 @@ object Styles {
         }
 
         val drawerLegacy = LabelStyler.parseColor(
-            prefs.drawerBgColor, context.getColor(R.color.drawerBackground)
+            prefs.drawerBgColor, ThemeEngine.drawerColor(context, prefs)
         )
         // The FOLDER surface colors the folder *window*, so its default is the
         // opaque theme surface; the translucent preview-plate default lives in
@@ -181,7 +181,7 @@ object Styles {
                     SurfaceId.SEARCH_BAR, themeSurface, themeText, null
                 ),
                 SurfaceId.SETTINGS to resolved(
-                    SurfaceId.SETTINGS, context.getColor(R.color.background), themeText, null
+                    SurfaceId.SETTINGS, ThemeEngine.backgroundColor(context, prefs), themeText, null
                 ),
                 SurfaceId.HOME to resolved(
                     SurfaceId.HOME, android.graphics.Color.TRANSPARENT, onWallpaper, null

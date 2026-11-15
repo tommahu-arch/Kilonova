@@ -136,7 +136,7 @@ class OnboardingActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        ThemeEngine.applyAccent(this, viewModel.state.value.prefs.accentColor)
+        ThemeEngine.applyTheme(this, viewModel.state.value.prefs)
         binding = ActivityOnboardingBinding.inflate(layoutInflater)
         setContentView(binding.root)
         step = savedInstanceState?.getInt(KEY_STEP, STEP_WELCOME) ?: STEP_WELCOME

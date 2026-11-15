@@ -385,6 +385,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
     private var pendingApk: PendingApk? = null
 
     private var appliedAccent: AccentColor = AccentColor.BLUE
+    private var appliedTrueBlack = false
     private var lastRenderedState: LauncherUiState? = null
     // What the dock currently shows; see dockSignature. Null forces a rebuild.
     private var renderedDock: List<Any?>? = null
@@ -634,7 +635,8 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
         window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         viewModel.onDisplayDensity(resources.displayMetrics.densityDpi)
         appliedAccent = viewModel.state.value.prefs.accentColor
-        ThemeEngine.applyAccent(this, appliedAccent)
+        appliedTrueBlack = ThemeEngine.isTrueBlack(this, viewModel.state.value.prefs)
+        ThemeEngine.applyTheme(this, viewModel.state.value.prefs)
         binding = ActivityLauncherBinding.inflate(layoutInflater)
         setContentView(binding.root)
         rememberConfiguration(resources.configuration)
@@ -1755,7 +1757,9 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
                     if (!state.loaded) return@collect
                     widgets.rebindRestoredWidgets(state.model)
                     ThemeEngine.applyMode(this@LauncherActivity, state.prefs)
-                    if (state.prefs.accentColor != appliedAccent) {
+                    if (state.prefs.accentColor != appliedAccent ||
+                        ThemeEngine.isTrueBlack(this@LauncherActivity, state.prefs) != appliedTrueBlack
+                    ) {
                         appliedAccent = state.prefs.accentColor
                         recreate()
                         return@collect

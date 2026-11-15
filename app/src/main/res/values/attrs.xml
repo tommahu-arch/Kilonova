@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- The dark theme's base shades, behind an attribute so true black can swap them. -->
+    <attr name="lookBackground" format="color" />
+    <attr name="lookSurface" format="color" />
+    <attr name="lookDrawer" format="color" />
+    <attr name="lookRaised" format="color" />
+    <attr name="lookNav" format="color" />
+    <attr name="lookBand" format="color" />
     <!-- The accent as text on a raised surface: set by each accent overlay. -->
     <attr name="colorAccentOnRaised" format="color" />
     <declare-styleable name="DragGridView">

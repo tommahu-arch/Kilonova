@@ -1984,6 +1984,12 @@ object SettingsCatalogue {
                 onClick = actions.editThemeSchedule,
                 look = SettingItem.RowLook(R.drawable.ic_style_schedule)
             ).hiddenWhen { dependsOn(R.string.theme_mode, it.themeMode != ThemeMode.SCHEDULE) },
+            SettingItem.Toggle(
+                R.string.true_black,
+                get = { it.trueBlack },
+                set = { viewModel.set(Pref.trueBlack, it) },
+                subtitle = R.string.true_black_summary
+            ),
             accentRow(context, viewModel, actions),
             SettingItem.Header(R.string.style_group_surfaces),
             SettingItem.StyleTarget(

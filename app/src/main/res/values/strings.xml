@@ -344,6 +344,8 @@
     <string name="settings_section_folders">Folders</string>
     <string name="settings_section_icons">Icons &amp; labels</string>
     <string name="theme_mode">Theme</string>
+    <string name="true_black">True black</string>
+    <string name="true_black_summary">Pure black backgrounds in the dark theme, for AMOLED screens</string>
     <string name="theme_system">Follow system</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>

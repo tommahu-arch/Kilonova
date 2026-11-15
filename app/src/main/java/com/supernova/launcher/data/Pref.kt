@@ -267,6 +267,7 @@ object Pref {
     val folderPlateColor = text("folder_plate_color")
     val folderBadges = bool("folder_badges")
     val themeMode = choice("theme_mode", ThemeMode.entries)
+    val trueBlack = bool("true_black")
     val themeScheduleStart = int("theme_schedule_start", 0..DAY_LAST_MINUTE)
     val themeScheduleEnd = int("theme_schedule_end", 0..DAY_LAST_MINUTE)
     val accentColor = choice("accent_color", AccentColor.entries)
