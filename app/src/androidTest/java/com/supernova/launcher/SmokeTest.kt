@@ -25,14 +25,14 @@ import org.junit.runner.RunWith
 // stands exports to a backup that reads back. They only look: nothing here
 // adds, moves or removes anything, or writes a setting.
 //
-// WARNING: don't run these with connectedDebugAndroidTest on a phone you
-// use. Gradle uninstalls the app when the run ends, and the home layout,
+// WARNING: debug and release share one package, so this is your real app. Don't
+// run these with connectedDebugAndroidTest on a phone you use. Gradle uninstalls the app when the run ends, and the home layout,
 // every setting and the widget bindings go with it. Install both APKs and
 // run them in place instead:
 //
 //   ./gradlew :app:installDebug :app:installDebugAndroidTest
 //   adb shell am instrument -w \
-//       com.supernova.launcher.debug.test/androidx.test.runner.AndroidJUnitRunner
+//       com.kilonova.launcher.test/androidx.test.runner.AndroidJUnitRunner
 @RunWith(AndroidJUnit4::class)
 class SmokeTest {
 

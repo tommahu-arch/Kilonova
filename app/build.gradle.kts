@@ -47,13 +47,12 @@ android {
     }
 
     buildTypes {
-        // A separate app beside the release one, so the dev build and the
-        // APK testers get can sit on one phone. The namespace (and so every
+        // Debug and release are one app (com.kilonova.launcher): one install
+        // on the phone, one set of settings. The namespace (and so every
         // class name and the settings alias) stays com.supernova.launcher.
         debug {
-            applicationIdSuffix = ".debug"
-            // Same key as release, so debug and release builds are signed alike.
-            // Falls back to the default debug key without keystore.properties.
+            // Same key as release, so a debug build installs over the release
+            // one and keeps its data. Falls back to the default debug key without keystore.properties.
             signingConfigs.findByName("release")?.let { signingConfig = it }
         }
         release {

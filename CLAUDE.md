@@ -7,15 +7,17 @@ Work is one short-lived branch per requirement, merged into `main` after testing
 
 ## Licence rules
 - Stays AGPL-3.0. Keep upstream copyright/licence notices; mark modified files as modified.
-- Rename is cosmetic: `applicationId` is `com.kilonova.launcher` (debug adds `.debug`), but the Kotlin
+- Rename is cosmetic: `applicationId` is `com.kilonova.launcher` (debug and release share it), but the Kotlin
   namespace/package stays `com.supernova.launcher` and class names (`SupernovaApp`, `SupernovaPopupMenu`, ...)
   are unchanged on purpose, to keep upstream merges clean. Do not mass-rename.
 
 ## Target and constraints
 - Test device: Samsung Galaxy Tab S12 Ultra, NOT rooted, Knox must not be tripped. No-root solutions only
   (no root-only APIs, no bootloader or system-partition changes, no signature-permission tricks).
-- Debug and release builds show the same labels ("Kilonova", "Kilonova Settings"); they coexist via the
-  `.debug` package suffix. Installing the renamed package is a new app: re-grant notification access.
+- Debug and release are one app, same package and same labels ("Kilonova", "Kilonova Settings"), signed with the
+  same key, so `adb install -r` of either updates the other in place and keeps the data (a lower versionCode
+  can't be installed over a higher one). Installing the renamed package the first time is a new app: re-grant
+  notification access. Never run `connectedDebugAndroidTest` on the phone: Gradle uninstalls the app after.
 
 ## Stack
 Kotlin, classic Android Views (no Compose), ~62k LOC. minSdk 28, targetSdk 36, compileSdk 37.
@@ -55,7 +57,7 @@ Upstream's own tags (v0.1.7 ... v0.2.1) are in the repo; Kilonova's start at v0.
 - Publish only on Thomas's go-ahead: merge into `main` (`--no-ff`), annotated tag `v<version>` on the merge,
   `git push origin main v<version>`, then `gh release create v<version> ~/Kilonova-<version>.apk --repo
   tommahu-arch/Kilonova --title "Kilonova <version>" --notes ...`. Delete the merged branch.
-- The debug build (`com.kilonova.launcher.debug`) and the release (`com.kilonova.launcher`) coexist on the phone.
+- Debug and release are the same package, so one app on the phone: install whichever you are testing over it.
 
 ## Requirements and status
 Decisions were made under Thomas Mahu's authority; do not change scope without asking.
@@ -100,7 +102,7 @@ Decisions were made under Thomas Mahu's authority; do not change scope without a
 - **Releases.** v0.0.1 (versionCode 1): first release, R3, R4, R5, drawer icons. v0.0.2 (versionCode 22): folder tap action
   and What's new text. v0.0.3 (versionCode 23): search box in the action picker (`ui/ActionPickerSheet.kt`: filters the
   showing tab, text kept across tabs; also in swipe and gesture pickers) and debug builds signed with the release key
-  (debug and release can swap installs; settings still don't sync, use Export/Import backup). All published on GitHub,
+  (from 0.0.4 on, debug and release are one package). All published on GitHub,
   signed with the same key.
 
 ## Gotchas learned
