@@ -38,10 +38,10 @@ Gradle 9.7.1, AGP 9.4.1, Kotlin 2.4.20, JVM target 17.
 - `gh` quirks: `gh repo rename` needs `--repo`; `gh repo fork --remote` only from inside a clone.
 
 ## Release process
-Releases: https://github.com/tommahu-arch/Kilonova/releases (Kilonova-<version>.apk). Current: v0.0.2.
+Releases: https://github.com/tommahu-arch/Kilonova/releases (Kilonova-<version>.apk). Current: v0.0.3.
 Upstream's own tags (v0.1.7 ... v0.2.1) are in the repo; Kilonova's start at v0.0.1 and must not reuse them.
 - Version lives in `app/build.gradle.kts`: `versionName` (0.0.N) and `versionCode`. versionCode must only go up
-  (0.0.1 = 1, 0.0.2 = 22). Upstream's What's new files `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
+  (0.0.1 = 1, 0.0.2 = 22, 0.0.3 = 23). Upstream's What's new files `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
   already cover 2..21, so Kilonova's codes start at 22 and skip those; add `<versionCode>.txt` for every release
   (it ships in the APK as `assets/<versionCode>.txt`; a missing file leaves About > What's new empty).
 - Signing: release key `~/.android/kilonova-release.jks`, passwords in the gitignored `keystore.properties` at the
@@ -91,14 +91,17 @@ Decisions were made under Thomas Mahu's authority; do not change scope without a
   stay internal. Falls back to Kilonova's search if Finder can't start. Code: `search/SamsungFinder.kt`,
   `SearchEngine` in `data/SettingEnums.kt`, `LauncherActivity.openSamsungFinder`,
   `SettingsCatalogue.hiddenUnderFinder`.
-- **Folder tap action (done, released in v0.0.2, release build installed on the phone; not yet hand-verified).**
+- **Folder tap action (done, released in v0.0.2; search added in v0.0.3, installed on the phone, not yet hand-verified).**
   With "Swipe to open folder" on, the folder's Edit sheet shows a "Tap action" row above Swipe up: the app,
   shortcut or launcher action a tap launches; default is the first app in the folder, "Nothing" resets it.
   Reuses the swipe action picker. Code: `LauncherItem.tapAction/tapLabel`, `LauncherRepository.setFolderTapAction`,
   `ui/FolderEditSheet.kt` (`onEditTap`), `LauncherActivity.launchFolderTap` and `showSwipeActionPicker(tap = true)`.
   The picked pick is kept when the switch goes off, like the swipe-up action.
 - **Releases.** v0.0.1 (versionCode 1): first release, R3, R4, R5, drawer icons. v0.0.2 (versionCode 22): folder tap action
-  and What's new text. Both published on GitHub, signed with the same key.
+  and What's new text. v0.0.3 (versionCode 23): search box in the action picker (`ui/ActionPickerSheet.kt`: filters the
+  showing tab, text kept across tabs; also in swipe and gesture pickers) and debug builds signed with the release key
+  (debug and release can swap installs; settings still don't sync, use Export/Import backup). All published on GitHub,
+  signed with the same key.
 
 ## Gotchas learned
 - One UI hands launchers (`LauncherActivityInfo.getIcon`) Kilonova's legacy icons already cut to its
