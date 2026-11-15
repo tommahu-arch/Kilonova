@@ -72,4 +72,9 @@
     <color name="onboardingText">#DBFFFFFF</color>
     <color name="onboardingTrack">#38FFFFFF</color>
     <color name="onboardingSummary">#B8FFFFFF</color>
+    <!-- True black (AMOLED) shades, used over the dark theme. -->
+    <color name="trueBlack">#000000</color>
+    <color name="trueBlackSurface">#121212</color>
+    <color name="trueBlackRaised">#1A1A1A</color>
+    <color name="trueBlackBand">#0A0A0A</color>
 </resources>

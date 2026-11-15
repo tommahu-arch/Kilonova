@@ -99,6 +99,7 @@ import com.supernova.launcher.ui.SupernovaPopupMenu
 import com.supernova.launcher.ui.snapToHalfCell
 import com.supernova.launcher.ui.BadgeDiff
 import com.supernova.launcher.ui.BadgeStyle
+import com.supernova.launcher.ui.DesktopLock
 import com.supernova.launcher.ui.FolderEditSheet
 import com.supernova.launcher.ui.LabelStyler
 import com.supernova.launcher.ui.SwipeArrowDrawable
@@ -385,6 +386,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
     private var pendingApk: PendingApk? = null
 
     private var appliedAccent: AccentColor = AccentColor.BLUE
+    private var appliedTrueBlack = false
     private var lastRenderedState: LauncherUiState? = null
     // What the dock currently shows; see dockSignature. Null forces a rebuild.
     private var renderedDock: List<Any?>? = null
@@ -634,7 +636,8 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
         window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
         viewModel.onDisplayDensity(resources.displayMetrics.densityDpi)
         appliedAccent = viewModel.state.value.prefs.accentColor
-        ThemeEngine.applyAccent(this, appliedAccent)
+        appliedTrueBlack = ThemeEngine.isTrueBlack(this, viewModel.state.value.prefs)
+        ThemeEngine.applyTheme(this, viewModel.state.value.prefs)
         binding = ActivityLauncherBinding.inflate(layoutInflater)
         setContentView(binding.root)
         rememberConfiguration(resources.configuration)
@@ -1755,7 +1758,9 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
                     if (!state.loaded) return@collect
                     widgets.rebindRestoredWidgets(state.model)
                     ThemeEngine.applyMode(this@LauncherActivity, state.prefs)
-                    if (state.prefs.accentColor != appliedAccent) {
+                    if (state.prefs.accentColor != appliedAccent ||
+                        ThemeEngine.isTrueBlack(this@LauncherActivity, state.prefs) != appliedTrueBlack
+                    ) {
                         appliedAccent = state.prefs.accentColor
                         recreate()
                         return@collect
@@ -3306,7 +3311,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
     }
 
     private fun showWorkspaceItemMenu(anchor: View, item: LauncherItem): SupernovaPopupMenu {
-        val locked = desktopLocked
+        val locked = lockedFor(item)
         val menu = newItemPopup(forItem = true)
         if (item.itemType == ItemType.APP || item.itemType == ItemType.SHORTCUT) {
             addNotificationRows(menu, item.packageName, item.userSerial)
@@ -3588,7 +3593,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
     // dialog opens (the open folder closes).
     private fun addMoveToDrawerRow(menu: SupernovaPopupMenu, folder: LauncherItem, first: () -> Unit = {}) {
         val movable = FolderToDrawer.movable(viewModel.folderMembers(folder.id))
-        if (desktopLocked || movable.isEmpty()) return
+        if (lockedFor(folder) || movable.isEmpty()) return
         menu.addRow(getString(R.string.move_to_drawer), R.drawable.ic_menu_export) {
             first()
             promptMoveFolderToDrawer(folder)
@@ -3827,7 +3832,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
         closeFolder: () -> Unit,
         applied: (com.supernova.launcher.data.LauncherModel) -> Unit
     ): SupernovaPopupMenu {
-        val locked = desktopLocked
+        val locked = lockedFor(member)
         val menu = newItemPopup(forItem = true)
         addNotificationRows(menu, member.packageName, member.userSerial)
         if (!locked) {
@@ -4353,6 +4358,10 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
     private val desktopLocked: Boolean
         get() = viewModel.state.value.prefs.desktopLocked
 
+    // The desktop's lock, or Lock dock for an item in the dock or a docked folder.
+    private fun lockedFor(item: LauncherItem?): Boolean =
+        desktopLocked || viewModel.state.value.let { DesktopLock.dockLocks(it.prefs, it.model, item) }
+
     // ---- LiveDragController.Host: what the drag engine asks of the activity
     // beyond the functions above that it shares with the rest of the screen.
 
@@ -4420,7 +4429,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
     }
 
     override fun handleDropToDock(payload: DragPayload, rank: Int, merge: Boolean): Boolean {
-        if (desktopLocked) return false
+        if (desktopLocked || viewModel.state.value.prefs.dockLocked) return false
         if (merge && canMergeIntoDock(payload, rank)) {
             dockMergeItem(payload, preview = false)?.let { viewModel.mergeIntoDock(it, rank) }
             return true

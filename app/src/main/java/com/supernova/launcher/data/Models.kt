@@ -383,6 +383,8 @@ data class LauncherPrefs(
     // Badge folder icons with the summed unread count of their members.
     val folderBadges: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    // Dark theme in true black, for AMOLED screens.
+    val trueBlack: Boolean = false,
     // SCHEDULE mode's dark window, minutes since midnight; end < start wraps
     // past midnight (defaults: 19:00-07:00).
     val themeScheduleStart: Int = 1140,
@@ -408,6 +410,8 @@ data class LauncherPrefs(
     // labelConfig can still allow two lines.
     val labelSingleLine: Boolean = true,
     val dockInfiniteScroll: Boolean = false,
+    // Lock dock: nothing in the dock, or in a folder in it, is added, moved or removed.
+    val dockLocked: Boolean = false,
     // When on, the dock follows iconScale and the dock scale slider hides.
     // On by default.
     val dockMatchDesktop: Boolean = true,

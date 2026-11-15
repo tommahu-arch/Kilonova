@@ -1,0 +1,5 @@
+True black, Lock dock and custom colors.
+
+- Style > Theme > True black: pure black backgrounds in the dark theme, for AMOLED screens
+- Dock > Advanced > Lock dock: dock icons and docked folders can't be moved, dropped onto or removed
+- Color rows (badge, badge text, label and others) end with Custom color: type any hex, RRGGBB or AARRGGBB

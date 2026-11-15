@@ -133,6 +133,33 @@ object ThemeEngine {
         activity.theme.applyStyle(accent.overlayRes, true)
     }
 
+    // The accent plus, in the dark theme with True black on, the black
+    // shades. Call before setContentView.
+    fun applyTheme(activity: Activity, prefs: com.supernova.launcher.data.LauncherPrefs) {
+        applyAccent(activity, prefs.accentColor)
+        if (isTrueBlack(activity, prefs)) {
+            activity.theme.applyStyle(R.style.ThemeOverlay_Supernova_TrueBlack, true)
+        }
+    }
+
+    // True black shows only while the launcher is dark.
+    fun isTrueBlack(context: Context, prefs: com.supernova.launcher.data.LauncherPrefs): Boolean =
+        prefs.trueBlack && isNight(context, prefs)
+
+    // The theme's base shades as Kotlin sees them, parallel to the
+    // lookBackground/lookSurface/lookRaised overlay attributes.
+    fun backgroundColor(context: Context, prefs: com.supernova.launcher.data.LauncherPrefs): Int =
+        context.getColor(if (isTrueBlack(context, prefs)) R.color.trueBlack else R.color.background)
+
+    fun surfaceColor(context: Context, prefs: com.supernova.launcher.data.LauncherPrefs): Int =
+        context.getColor(if (isTrueBlack(context, prefs)) R.color.trueBlackSurface else R.color.surface)
+
+    fun raisedColor(context: Context, prefs: com.supernova.launcher.data.LauncherPrefs): Int =
+        context.getColor(if (isTrueBlack(context, prefs)) R.color.trueBlackRaised else R.color.raised)
+
+    fun drawerColor(context: Context, prefs: com.supernova.launcher.data.LauncherPrefs): Int =
+        context.getColor(if (isTrueBlack(context, prefs)) R.color.trueBlack else R.color.drawerBackground)
+
     fun accentColor(context: Context, accent: AccentColor): Int =
         context.getColor(accent.colorRes)
 }

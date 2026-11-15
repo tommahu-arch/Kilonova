@@ -114,7 +114,8 @@ class ItemMoveActions(private val host: Host) {
 
     // Nothing while the desktop is locked: it refuses a drag, and so these.
     private fun movable(state: LauncherUiState, itemId: String): LauncherItem? =
-        state.model.items.firstOrNull { it.id == itemId }.takeUnless { state.prefs.desktopLocked }
+        state.model.items.firstOrNull { it.id == itemId }
+            .takeUnless { state.prefs.desktopLocked || DesktopLock.dockLocks(state.prefs, state.model, it) }
 
     private fun grid(state: LauncherUiState) = AccessibleMoves.Grid(
         state.prefs.gridCols,

@@ -61,7 +61,7 @@ class PinRequestActivity : AppCompatActivity() {
         // The accent overlay is what sets colorAccent, which the dialog's
         // colours resolve through: without it MaterialAlertDialogBuilder
         // found no theme colours and this screen crashed on open.
-        ThemeEngine.applyAccent(this, runBlocking { preferences.flow.first() }.accentColor)
+        ThemeEngine.applyTheme(this, runBlocking { preferences.flow.first() })
 
         if (savedInstanceState != null) {
             pendingWidgetId = savedInstanceState.getInt(KEY_PENDING_ID, AppWidgetManager.INVALID_APPWIDGET_ID)

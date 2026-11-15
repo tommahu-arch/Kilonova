@@ -136,6 +136,7 @@ class SettingsActivity : AppCompatActivity() {
     // The one view living in previewPane; created on first use.
     private var paneView: com.supernova.launcher.ui.settings.preview.SettingsPreviewView? = null
     private var appliedAccent: AccentColor = AccentColor.BLUE
+    private var appliedTrueBlack = false
 
     // Header search over the whole catalogue; the index resolves lazily on
     // first activation so plain settings visits never build it.
@@ -338,7 +339,8 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         appliedAccent = viewModel.state.value.prefs.accentColor
-        ThemeEngine.applyAccent(this, appliedAccent)
+        appliedTrueBlack = ThemeEngine.isTrueBlack(this, viewModel.state.value.prefs)
+        ThemeEngine.applyTheme(this, viewModel.state.value.prefs)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
         // Edge-to-edge, like the launcher window: the toolbar takes the status
@@ -453,6 +455,7 @@ class SettingsActivity : AppCompatActivity() {
                     .show()
             },
             openPaletteDialog = ::showPaletteSourcePicker,
+            promptHexColor = ::promptHexColor,
             openStylePicker = { surfaceId -> StylePickerSheet.show(this, viewModel, surfaceId) },
             showAutoBackups = ::showAutoBackups,
             editGesture = ::showActionPicker,
@@ -661,7 +664,9 @@ class SettingsActivity : AppCompatActivity() {
                     // Night mode recreates activities on its own; an accent
                     // change has to ask, and only when it really changed.
                     ThemeEngine.applyMode(this@SettingsActivity, state.prefs)
-                    if (state.prefs.accentColor != appliedAccent) {
+                    if (state.prefs.accentColor != appliedAccent ||
+                        ThemeEngine.isTrueBlack(this@SettingsActivity, state.prefs) != appliedTrueBlack
+                    ) {
                         appliedAccent = state.prefs.accentColor
                         recreate()
                     }
@@ -678,7 +683,7 @@ class SettingsActivity : AppCompatActivity() {
         val surface = Styles.resolve(this, prefs).of(SurfaceId.SETTINGS).surface
         binding.root.setBackgroundColor(surface)
         groupCards.cardColor = when {
-            surface == getColor(R.color.background) -> getColor(R.color.surface)
+            surface == ThemeEngine.backgroundColor(this, prefs) -> ThemeEngine.surfaceColor(this, prefs)
             androidx.core.graphics.ColorUtils.calculateLuminance(surface or OPAQUE) > HALF ->
                 androidx.core.graphics.ColorUtils.blendARGB(surface, android.graphics.Color.WHITE, CARD_LIFT_LIGHT)
             else -> androidx.core.graphics.ColorUtils.blendARGB(surface, android.graphics.Color.WHITE, CARD_LIFT_DARK)
@@ -1108,6 +1113,27 @@ class SettingsActivity : AppCompatActivity() {
             viewModel.set(Pref.paletteSource, mode)
             if (mode == PaletteSourceMode.CUSTOM) promptPaletteSeed()
         }
+    }
+
+    // A hex typed in: RRGGBB, or AARRGGBB to set the opacity too. Stored as #AARRGGBB.
+    private fun promptHexColor(title: Int, stored: String, onPick: (String) -> Unit) {
+        val input = EditText(this).apply {
+            hint = getString(R.string.color_hex_hint)
+            setText(stored.removePrefix("#").let { if (it.length == 8 && it.startsWith("FF", true)) it.substring(2) else it })
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setView(com.supernova.launcher.ui.DialogField.wrap(input))
+            .setPositiveButton(R.string.save) { _, _ ->
+                val digits = input.text?.toString().orEmpty().trim().removePrefix("#")
+                if ((digits.length == 6 || digits.length == 8) && digits.toLongOrNull(16) != null) {
+                    onPick("#" + (if (digits.length == 6) "FF" else "") + digits.uppercase())
+                } else {
+                    Toast.makeText(this, R.string.palette_seed_invalid, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
     }
 
     private fun promptPaletteSeed() {
@@ -1891,9 +1917,9 @@ class SettingsActivity : AppCompatActivity() {
         // An unstyled popup is the theme's surface, the cards' own colour;
         // over the cards it takes the raised one, as dialogs and sheets do.
         val popup = Styles.resolve(this, viewModel.state.value.prefs).of(SurfaceId.POPUP)
-        val surface = if (popup.surface == getColor(R.color.surface)) {
+        val surface = if (popup.surface == ThemeEngine.surfaceColor(this, viewModel.state.value.prefs)) {
             com.supernova.launcher.ui.theme.ResolvedSurface(
-                getColor(R.color.raised), popup.text, popup.accent, popup.cornerRadiiDp
+                ThemeEngine.raisedColor(this, viewModel.state.value.prefs), popup.text, popup.accent, popup.cornerRadiiDp
             )
         } else {
             popup

@@ -1,5 +1,11 @@
 <resources>
     <style name="Theme.Supernova" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="lookBackground">@color/background</item>
+        <item name="lookSurface">@color/surface</item>
+        <item name="lookDrawer">@color/drawerBackground</item>
+        <item name="lookRaised">@color/raised</item>
+        <item name="lookNav">@color/settingsNav</item>
+        <item name="lookBand">@color/settingsBand</item>
         <item name="colorPrimary">@color/accent</item>
         <item name="colorControlHighlight">@color/rippleHighlight</item>
         <item name="android:colorControlHighlight">@color/rippleHighlight</item>
@@ -22,7 +28,7 @@
         <item name="android:textColorPrimary">@color/textPrimary</item>
         <item name="android:textColorSecondary">@color/textSecondary</item>
         <item name="colorOnSurface">@color/textPrimary</item>
-        <item name="colorSurface">@color/surface</item>
+        <item name="colorSurface">?attr/lookSurface</item>
         <item name="colorOnPrimary">@color/onAccent</item>
         <item name="colorOnSecondary">@color/onAccent</item>
         <item name="elevationOverlayEnabled">false</item>
@@ -36,6 +42,12 @@
     </style>
 
     <style name="Theme.Supernova.Transparent" parent="Theme.MaterialComponents.DayNight.Dialog.Alert">
+        <item name="lookBackground">@color/background</item>
+        <item name="lookSurface">@color/surface</item>
+        <item name="lookDrawer">@color/drawerBackground</item>
+        <item name="lookRaised">@color/raised</item>
+        <item name="lookNav">@color/settingsNav</item>
+        <item name="lookBand">@color/settingsBand</item>
         <item name="colorPrimary">@color/accent</item>
         <item name="colorControlHighlight">@color/rippleHighlight</item>
         <item name="android:colorControlHighlight">@color/rippleHighlight</item>
@@ -55,7 +67,7 @@
         <item name="android:textColorPrimary">@color/textPrimary</item>
         <item name="android:textColorSecondary">@color/textSecondary</item>
         <item name="colorOnSurface">@color/textPrimary</item>
-        <item name="colorSurface">@color/surface</item>
+        <item name="colorSurface">?attr/lookSurface</item>
         <item name="colorOnPrimary">@color/onAccent</item>
         <item name="colorOnSecondary">@color/onAccent</item>
         <item name="elevationOverlayEnabled">false</item>
@@ -88,6 +100,16 @@
         <item name="android:textColor">@color/textPrimary</item>
     </style>
 
+
+    <!-- True black for AMOLED: applied over the dark theme only. -->
+    <style name="ThemeOverlay.Supernova.TrueBlack" parent="">
+        <item name="lookBackground">@color/trueBlack</item>
+        <item name="lookSurface">@color/trueBlackSurface</item>
+        <item name="lookDrawer">@color/trueBlack</item>
+        <item name="lookRaised">@color/trueBlackRaised</item>
+        <item name="lookNav">@color/trueBlack</item>
+        <item name="lookBand">@color/trueBlackBand</item>
+    </style>
 
     <style name="ThemeOverlay.Supernova.Blue" parent="">
         <item name="colorPrimary">@color/accentBlue</item>
@@ -172,7 +194,7 @@
     <!-- ============================================================ -->
 
     <style name="ThemeOverlay.Supernova.Dialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
-        <item name="colorSurface">@color/raised</item>
+        <item name="colorSurface">?attr/lookRaised</item>
         <item name="colorOnSurface">@color/textPrimary</item>
         <item name="colorPrimary">?attr/colorAccent</item>
         <item name="colorSecondary">?attr/colorAccent</item>
@@ -204,7 +226,7 @@
     </style>
 
     <style name="ThemeOverlay.Supernova.TimePicker" parent="ThemeOverlay.MaterialComponents.TimePicker">
-        <item name="colorSurface">@color/surface</item>
+        <item name="colorSurface">?attr/lookSurface</item>
         <item name="colorOnSurface">@color/textPrimary</item>
         <item name="colorPrimary">?attr/colorAccent</item>
         <item name="colorOnPrimary">@color/onAccent</item>
@@ -237,7 +259,7 @@
          a black strip. -->
     <style name="ThemeOverlay.Supernova.BottomSheet" parent="ThemeOverlay.MaterialComponents.BottomSheetDialog">
         <item name="bottomSheetStyle">@style/Widget.Supernova.BottomSheet</item>
-        <item name="colorSurface">@color/raised</item>
+        <item name="colorSurface">?attr/lookRaised</item>
         <item name="colorOnSurface">@color/textPrimary</item>
         <item name="colorPrimary">?attr/colorAccent</item>
         <item name="colorSecondary">?attr/colorAccent</item>
@@ -245,7 +267,7 @@
         <item name="android:textColorPrimary">@color/textPrimary</item>
         <item name="android:textColorSecondary">@color/textSecondary</item>
         <item name="elevationOverlayEnabled">false</item>
-        <item name="android:navigationBarColor">@color/raised</item>
+        <item name="android:navigationBarColor">?attr/lookRaised</item>
         <item name="android:windowLightNavigationBar">@bool/lightSystemBars</item>
         <item name="android:backgroundDimAmount">0.5</item>
         <item name="materialButtonStyle">@style/Widget.Supernova.Button</item>
@@ -257,7 +279,7 @@
     </style>
 
     <style name="Widget.Supernova.BottomSheet" parent="Widget.MaterialComponents.BottomSheet.Modal">
-        <item name="backgroundTint">@color/raised</item>
+        <item name="backgroundTint">?attr/lookRaised</item>
         <item name="shapeAppearanceOverlay">@style/ShapeAppearanceOverlay.Supernova.BottomSheet</item>
         <item name="android:elevation">0dp</item>
         <!-- Sheets open fully; a sheet that peeks at half height and needs a

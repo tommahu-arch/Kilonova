@@ -86,6 +86,8 @@ object SettingsCatalogue {
         val editBadgedApps: () -> Unit = {},
         val postTestBadge: () -> Unit = {},
         val openPaletteDialog: () -> Unit = {},
+        // Asks for a hex color: its title, the stored color, and what to do with the chosen #AARRGGBB.
+        val promptHexColor: (Int, String, (String) -> Unit) -> Unit = { _, _, _ -> },
         val openStylePicker: (SurfaceId) -> Unit = {},
         val showAutoBackups: () -> Unit = {},
         val exportBackup: () -> Unit = {},
@@ -184,7 +186,7 @@ object SettingsCatalogue {
         fun color(
             @StringRes title: Int,
             current: (LauncherPrefs) -> String,
-            subtitle: (LauncherPrefs) -> CharSequence? = { context.getString(curatedFor(current(it)).first) },
+            subtitle: (LauncherPrefs) -> CharSequence? = { colorName(context, current(it)) },
             visibleIf: (LauncherPrefs) -> Boolean = { true },
             onPick: (String) -> Unit
         ): SettingItem.Row = SettingItem.Row(
@@ -192,11 +194,16 @@ object SettingsCatalogue {
             subtitle = subtitle,
             onClick = {
                 val now = current(viewModel.state.value.prefs)
+                // The last entry is Custom color: a hex typed in, selected
+                // while the stored color is none of the listed ones.
+                val custom = CURATED_COLORS.size
                 actions.pickChoice(
                     Choice(
-                        title, CURATED_COLORS.map { context.getString(it.first) },
-                        CURATED_COLORS.indexOf(curatedFor(now)), { onPick(CURATED_COLORS[it].second) },
-                        swatches = CURATED_COLORS.map { swatchOf(it.second) }
+                        title,
+                        CURATED_COLORS.map { context.getString(it.first) } + context.getString(R.string.color_custom_pick),
+                        if (isCustomColor(now)) custom else CURATED_COLORS.indexOf(curatedFor(now)),
+                        { if (it == custom) actions.promptHexColor(title, now, onPick) else onPick(CURATED_COLORS[it].second) },
+                        swatches = CURATED_COLORS.map { swatchOf(it.second) } + swatchOf(now).takeIf { isCustomColor(now) }
                     )
                 )
             },
@@ -338,6 +345,14 @@ object SettingsCatalogue {
 
     private fun curatedFor(stored: String): Pair<Int, String> =
         CURATED_COLORS.firstOrNull { it.second.equals(stored, ignoreCase = true) } ?: CURATED_COLORS.first()
+
+    // A stored color that is neither Default nor one of the listed ones: typed in as a hex.
+    private fun isCustomColor(stored: String): Boolean =
+        stored.isNotBlank() && CURATED_COLORS.none { it.second.equals(stored, ignoreCase = true) }
+
+    // The listed color's name, or the hex of a custom one.
+    private fun colorName(context: Context, stored: String): String =
+        if (isCustomColor(stored)) stored.uppercase() else context.getString(curatedFor(stored).first)
 
     // Its dot; none for Default.
     private fun swatchOf(hex: String): Int? =
@@ -689,6 +704,12 @@ object SettingsCatalogue {
                     display = { context.getString(R.string.padding_dp_value, it) }
                 ).hiddenWhen(dockHidden),
                 SettingItem.Accordion(R.string.advanced),
+                SettingItem.Toggle(
+                    R.string.dock_locked,
+                    get = { it.dockLocked },
+                    set = { viewModel.set(Pref.dockLocked, it) },
+                    subtitle = R.string.dock_locked_summary
+                ).hiddenWhen(dockHidden),
                 SettingItem.Toggle(
                     R.string.dock_infinite_scroll,
                     get = { it.dockInfiniteScroll },
@@ -1634,7 +1655,7 @@ object SettingsCatalogue {
                         if (prefs.badgeColor.isBlank() && BadgeStyle.effective(prefs) == BadgeStyle.DOTS) {
                             context.getString(R.string.badge_color_icon)
                         } else {
-                            context.getString(curatedFor(prefs.badgeColor).first)
+                            colorName(context, prefs.badgeColor)
                         }
                     }
                 ) { viewModel.set(Pref.badgeColor, it) }.hiddenWhen {
@@ -1984,6 +2005,12 @@ object SettingsCatalogue {
                 onClick = actions.editThemeSchedule,
                 look = SettingItem.RowLook(R.drawable.ic_style_schedule)
             ).hiddenWhen { dependsOn(R.string.theme_mode, it.themeMode != ThemeMode.SCHEDULE) },
+            SettingItem.Toggle(
+                R.string.true_black,
+                get = { it.trueBlack },
+                set = { viewModel.set(Pref.trueBlack, it) },
+                subtitle = R.string.true_black_summary
+            ),
             accentRow(context, viewModel, actions),
             SettingItem.Header(R.string.style_group_surfaces),
             SettingItem.StyleTarget(

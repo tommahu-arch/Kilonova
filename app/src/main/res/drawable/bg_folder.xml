@@ -3,5 +3,5 @@
      card floats free of the screen edge, so all four corners round. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <corners android:radius="24dp" />
-    <solid android:color="@color/drawerBackground" />
+    <solid android:color="?attr/lookDrawer" />
 </shape>

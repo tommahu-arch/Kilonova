@@ -46,7 +46,7 @@ class WallpaperCropActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val prefs = runBlocking { appGraph.preferences.flow.first() }
-        ThemeEngine.applyAccent(this, prefs.accentColor)
+        ThemeEngine.applyTheme(this, prefs)
         val uri = intent.data
         if (uri == null) {
             finish()
