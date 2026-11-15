@@ -40,10 +40,10 @@ Gradle 9.7.1, AGP 9.4.1, Kotlin 2.4.20, JVM target 17.
 - `gh` quirks: `gh repo rename` needs `--repo`; `gh repo fork --remote` only from inside a clone.
 
 ## Release process
-Releases: https://github.com/tommahu-arch/Kilonova/releases (Kilonova-<version>.apk). Current: v0.0.3.
+Releases: https://github.com/tommahu-arch/Kilonova/releases (Kilonova-<version>.apk). Current: v0.0.4.
 Upstream's own tags (v0.1.7 ... v0.2.1) are in the repo; Kilonova's start at v0.0.1 and must not reuse them.
 - Version lives in `app/build.gradle.kts`: `versionName` (0.0.N) and `versionCode`. versionCode must only go up
-  (0.0.1 = 1, 0.0.2 = 22, 0.0.3 = 23). Upstream's What's new files `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
+  (0.0.1 = 1, 0.0.2 = 22, 0.0.3 = 23, 0.0.4 = 24). Upstream's What's new files `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
   already cover 2..21, so Kilonova's codes start at 22 and skip those; add `<versionCode>.txt` for every release
   (it ships in the APK as `assets/<versionCode>.txt`; a missing file leaves About > What's new empty).
 - Signing: release key `~/.android/kilonova-release.jks`, passwords in the gitignored `keystore.properties` at the
@@ -99,10 +99,20 @@ Decisions were made under Thomas Mahu's authority; do not change scope without a
   Reuses the swipe action picker. Code: `LauncherItem.tapAction/tapLabel`, `LauncherRepository.setFolderTapAction`,
   `ui/FolderEditSheet.kt` (`onEditTap`), `LauncherActivity.launchFolderTap` and `showSwipeActionPicker(tap = true)`.
   The picked pick is kept when the switch goes off, like the swipe-up action.
+- **R6 True black (done in v0.0.4, installed on the phone, not yet hand-verified).** Style > Theme > True black: the dark
+  theme's base shades are theme attributes (`lookBackground/Surface/Drawer/Raised/Nav/Band`, `values/attrs.xml`);
+  `ThemeOverlay.Supernova.TrueBlack` swaps them, applied by `ThemeEngine.applyTheme` (only while dark; Kotlin side:
+  `ThemeEngine.backgroundColor/surfaceColor/raisedColor/drawerColor`). The dock's base colour stays navy.
+- **Custom color (done in v0.0.4).** Every `rows.color` row (badge, badge text, label, ...) ends with "Custom color...":
+  a typed hex (RRGGBB or AARRGGBB), stored as #AARRGGBB. Code: `SettingsCatalogue.Rows.color`, `SettingsActivity.promptHexColor`.
+  Not done: a free-hex accent colour (the accent is 10 static overlays; idea: `ResourcesLoader`, API 30+).
+- **Lock dock (done in v0.0.4).** Settings > Dock > Advanced: dock icons and docked folders (and their members) can't be
+  lifted, dropped onto, removed or edited. `Pref.dockLocked`, `DesktopLock.dockLocks`, `LiveDragController.lockedByDock/dockable`,
+  `LauncherActivity.lockedFor/handleDropToDock`. Separate from Lock desktop, which already refuses all drags.
 - **Releases.** v0.0.1 (versionCode 1): first release, R3, R4, R5, drawer icons. v0.0.2 (versionCode 22): folder tap action
   and What's new text. v0.0.3 (versionCode 23): search box in the action picker (`ui/ActionPickerSheet.kt`: filters the
   showing tab, text kept across tabs; also in swipe and gesture pickers) and debug builds signed with the release key
-  (from 0.0.4 on, debug and release are one package). All published on GitHub,
+  (from 0.0.4 on, debug and release are one package). v0.0.4 (versionCode 24): True black, Lock dock, Custom color. All published on GitHub,
   signed with the same key.
 
 ## Gotchas learned
