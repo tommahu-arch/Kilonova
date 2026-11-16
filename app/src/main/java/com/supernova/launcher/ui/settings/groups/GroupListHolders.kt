@@ -11,6 +11,7 @@ import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.color.MaterialColors
 import com.supernova.launcher.R
 import com.supernova.launcher.data.DrawerGroupType
 import com.supernova.launcher.databinding.ItemGroupAddBinding
@@ -19,6 +20,8 @@ import com.supernova.launcher.databinding.ItemGroupCaptionBinding
 import com.supernova.launcher.databinding.ItemGroupEmptyBinding
 import com.supernova.launcher.databinding.ItemGroupPreviewBinding
 import com.supernova.launcher.databinding.ItemGroupRowBinding
+import com.supernova.launcher.databinding.ItemGroupStoreBinding
+import com.supernova.launcher.data.StoreCategories
 import com.supernova.launcher.databinding.ItemSettingGroupLabelBinding
 
 // The Drawer groups list's rows.
@@ -103,6 +106,15 @@ internal class GroupRowHolder(
             if (group.type == DrawerGroupType.FOLDER) icons.folder(group) else icons.tab(row.members)
         )
         binding.root.setOnClickListener { listener.open(group) }
+        // A store button is lit when the group takes categories from it.
+        val lit = ColorStateList.valueOf(MaterialColors.getColor(binding.root, R.attr.colorAccentOnRaised))
+        val dim = ColorStateList.valueOf(binding.root.context.getColor(R.color.textSecondary))
+        val playOn = group.storeCats.any { it.startsWith(StoreCategories.PLAY) }
+        val fdroidOn = group.storeCats.any { it.startsWith(StoreCategories.FDROID) }
+        binding.groupStorePlay.imageTintList = if (playOn) lit else dim
+        binding.groupStoreFdroid.imageTintList = if (fdroidOn) lit else dim
+        binding.groupStorePlay.setOnClickListener { listener.pickStore(group, StoreCategorySheet.Store.PLAY) }
+        binding.groupStoreFdroid.setOnClickListener { listener.pickStore(group, StoreCategorySheet.Store.FDROID) }
         binding.groupHandle.setOnTouchListener { _, event ->
             if (event.actionMasked == MotionEvent.ACTION_DOWN) listener.startDrag(this)
             false
@@ -174,5 +186,19 @@ internal class GroupEmptyHolder(
         binding.emptyBody.setText(if (tab) R.string.groups_tabs_blurb else R.string.groups_folders_blurb)
         binding.emptyAdd.setText(if (tab) R.string.new_tab else R.string.new_folder_group)
         binding.emptyAdd.setOnClickListener { listener.add(row.type) }
+    }
+}
+
+// The store card: its status line and two buttons.
+internal class GroupStoreHolder(
+    private val binding: ItemGroupStoreBinding,
+    private val listener: GroupListAdapter.Listener
+) : RecyclerView.ViewHolder(binding.root) {
+    fun bind(row: GroupListRow.Store, cardColor: Int) {
+        binding.root.backgroundTintList = ColorStateList.valueOf(cardColor)
+        binding.storeStatus.text = row.status
+        binding.storeSync.isEnabled = !row.running
+        binding.storeAddGroups.setOnClickListener { listener.addStoreGroups() }
+        binding.storeSync.setOnClickListener { listener.syncStore() }
     }
 }

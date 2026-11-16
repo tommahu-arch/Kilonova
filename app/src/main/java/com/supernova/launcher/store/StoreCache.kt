@@ -79,6 +79,8 @@ class StoreCache(private val dir: File, private val clock: () -> Long = System::
 
     fun fdroidAgeMs(): Long = clock() - loadedFdroid().fetchedAt
 
+    fun fdroidFetchedAt(): Long = loadedFdroid().fetchedAt
+
     fun fdroidEtag(): String = loadedFdroid().etag
 
     fun fdroidHasIndex(): Boolean = loadedFdroid().fetchedAt > 0L

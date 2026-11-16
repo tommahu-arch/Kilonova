@@ -7,6 +7,7 @@ import com.supernova.launcher.data.DrawerGroupType
 import com.supernova.launcher.data.LabelOrder
 import com.supernova.launcher.data.LaunchableApp
 import com.supernova.launcher.data.TabFolders
+import com.supernova.launcher.store.StoreSync
 import com.supernova.launcher.ui.DrawerTabBar
 import com.supernova.launcher.ui.LauncherViewModel
 
@@ -20,6 +21,7 @@ class GroupListBuilder(private val context: Context, private val viewModel: Laun
         if (groups.isEmpty()) {
             return listOf(
                 GroupListRow.Caption(R.string.groups_intro),
+                storeRow(),
                 GroupListRow.Empty(DrawerGroupType.TAB),
                 GroupListRow.Empty(DrawerGroupType.FOLDER)
             )
@@ -30,6 +32,7 @@ class GroupListBuilder(private val context: Context, private val viewModel: Laun
         val defaultTab = viewModel.state.value.prefs.drawerDefaultTab
         return buildList {
             if (tabs.isNotEmpty()) add(preview(tabs, apps))
+            add(storeRow())
             add(GroupListRow.Header(R.string.group_tabs_header))
             tabs.forEach { add(row(it, apps, TabFolders.inTab(it, folders).size, it.name == defaultTab)) }
             add(GroupListRow.Add(DrawerGroupType.TAB))
@@ -40,6 +43,32 @@ class GroupListBuilder(private val context: Context, private val viewModel: Laun
             if (folders.isNotEmpty()) add(GroupListRow.Caption(R.string.group_folder_hint))
         }
     }
+
+    // The store card: the lookup's state in a line.
+    private fun storeRow(): GroupListRow.Store {
+        val store = viewModel.store
+        val running = store.status.value as? StoreSync.Status.Running
+        val text = when (val status = store.status.value) {
+            is StoreSync.Status.Running -> context.getString(R.string.store_status_running, status.done, status.total)
+            is StoreSync.Status.Failed -> context.getString(R.string.store_status_failed, status.reason)
+            is StoreSync.Status.Finished -> when {
+                status.stoppedEarly -> context.getString(R.string.store_status_stopped)
+                status.failures > 0 -> context.getString(
+                    R.string.store_status_done_partial, age(status.at), status.failures
+                )
+                else -> context.getString(R.string.store_status_done, age(status.at))
+            }
+            StoreSync.Status.Idle -> store.cache.fdroidFetchedAt().takeIf { it > 0L }
+                ?.let { context.getString(R.string.store_status_done, age(it)) }
+                ?: context.getString(R.string.store_status_never)
+        }
+        return GroupListRow.Store(text, running != null)
+    }
+
+    private fun age(at: Long): CharSequence =
+        android.text.format.DateUtils.getRelativeTimeSpanString(
+            at, System.currentTimeMillis(), android.text.format.DateUtils.MINUTE_IN_MILLIS
+        )
 
     // "3 tabs · 2 folders", the Drawer groups row's value on the App drawer
     // page; null with no group.

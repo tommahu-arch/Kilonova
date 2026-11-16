@@ -112,6 +112,14 @@ Decisions were made under Thomas Mahu's authority; do not change scope without a
 - **Swipe mark color (done in v0.0.5).** Settings > Icons > Swipe mark color: the bar under icons with a swipe action
   (and swipe-to-open folders) has its own colour, white by default (it used to follow Label color). `Pref.swipeMarkColor`,
   `LauncherActivity.viewForItem`, row via `rows.color`.
+- **R7 Store categories for Drawer groups (built on branch `store-categories`, not merged, not hand-verified).** Each drawer
+  group can take apps by Google Play / F-Droid category (`DrawerGroup.storeCats`, keys `play:ID`, `fdroid:Name`,
+  `special:samsung|unsorted`; a key belongs to one group). Priority: F-Droid narrow > Play > F-Droid broad (`StoreSorting`);
+  com.samsung.* leftovers -> "Samsung built-in apps", the rest -> "Unsorted apps"; hand-picked members win.
+  `LauncherViewModel.drawerGroups()` is the effective list (members + store-sorted), `storedDrawerGroups()` what is written.
+  Lookup: `store/StoreSync` (F-Droid index-v2 weekly, ETag, streamed; one Play page per app, 1.2 s apart, unmetered only
+  unless "Update now"), cached in `filesDir/store/*.json` (`StoreCache`: Play hit 30 d, not listed 14 d, failure retry 1 d).
+  Adds INTERNET + ACCESS_NETWORK_STATE. Placeholder badges `ic_store_play/fdroid.xml` await Thomas's SVGs.
 - **Releases.** v0.0.1 (versionCode 1): first release, R3, R4, R5, drawer icons. v0.0.2 (versionCode 22): folder tap action
   and What's new text. v0.0.3 (versionCode 23): search box in the action picker (`ui/ActionPickerSheet.kt`: filters the
   showing tab, text kept across tabs; also in swipe and gesture pickers) and debug builds signed with the release key

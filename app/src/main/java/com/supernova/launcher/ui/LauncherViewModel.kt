@@ -304,6 +304,16 @@ class LauncherViewModel(
         // Smart folders are on by default, so the category folders are made
         // automatically; the toggle and the install hook regenerate them, so
         // this first pass only covers a store that has none yet.
+        // Store categories: look up what the groups sort by once the apps are
+        // known, and again when the number of installed apps changes (after
+        // the burst of package callbacks settles).
+        viewModelScope.launch {
+            state.first { it.loaded && it.apps.isNotEmpty() }
+            appsFlow.map { apps -> apps.size }.distinctUntilChanged().collect {
+                kotlinx.coroutines.delay(STORE_SYNC_DELAY_MS)
+                syncStoreCategories()
+            }
+        }
         viewModelScope.launch {
             val ready = state.first { it.loaded && it.apps.isNotEmpty() }
             if (ready.prefs.smartFolders && drawerGroups().none { it.smart }) regenerateSmartFolders()
@@ -1217,22 +1227,14 @@ class LauncherViewModel(
         store.start(state.value.apps.map { it.packageName }.distinct(), force)
     }
 
-    // A group's store categories: the keys move to it from any group that held
-    // them (a key sorts into one group only).
-    fun assignStoreCategories(name: String, keys: Set<String>) {
-        viewModelScope.launch {
-            preferences.updateDrawerGroups { StoreSorting.assign(it, name, keys) }
-        }
-    }
-
-    // A group's store categories, replaced by the picks made for one store.
-    fun setStoreCategories(name: String, prefix: String, keys: Set<String>) {
+    // A group's store categories from one store's picker: of the keys that
+    // picker offered (scope), exactly those picked are the group's, and they
+    // leave any group that held them (a key sorts into one group only).
+    fun setStoreCategories(name: String, scope: Set<String>, picked: Set<String>) {
         viewModelScope.launch {
             preferences.updateDrawerGroups { groups ->
-                val moved = StoreSorting.assign(groups, name, keys)
-                moved.map { group ->
-                    if (group.name != name) group
-                    else group.copy(storeCats = group.storeCats.filterNot { it.startsWith(prefix) && it !in keys }.toSet())
+                StoreSorting.assign(groups, name, picked).map { group ->
+                    if (group.name != name) group else group.copy(storeCats = group.storeCats - (scope - picked))
                 }
             }
         }
@@ -1712,5 +1714,6 @@ class LauncherViewModel(
         const val SMART_FOLDER_MIN_APPS = 3
         // ...and on a fresh install, nor do ones with more than this.
         const val SMART_FOLDER_FRESH_INSTALL_MAX_APPS = 4
+        const val STORE_SYNC_DELAY_MS = 8_000L
     }
 }
