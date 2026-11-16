@@ -4556,7 +4556,7 @@ class LauncherActivity : AppCompatActivity(), WorkspacePagerAdapter.Host, LiveDr
             if (prefs.iconSwipeIndicator && (item.swipeAction != null || item.swipeActionDown != null || item.swipeToOpen)) {
                 com.supernova.launcher.ui.SwipeIndicatorDrawable(
                     resources.displayMetrics.density,
-                    LabelStyler.parseColor(prefs.labelColor, getColor(R.color.onWallpaper))
+                    LabelStyler.parseColor(prefs.swipeMarkColor, getColor(R.color.onWallpaper))
                 )
             } else {
                 null

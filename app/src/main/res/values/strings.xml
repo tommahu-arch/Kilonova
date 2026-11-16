@@ -280,6 +280,7 @@
     <string name="icon_glass_frosted">Frosted</string>
     <string name="icon_glass_clear">Clear</string>
     <string name="icon_glass_smoked">Smoked</string>
+    <string name="swipe_mark_color">Swipe mark color</string>
     <string name="icon_swipe_indicator">Mark icons with swipe actions</string>
     <string name="badge_style">Badge style</string>
     <string name="badge_style_dots">Dots</string>

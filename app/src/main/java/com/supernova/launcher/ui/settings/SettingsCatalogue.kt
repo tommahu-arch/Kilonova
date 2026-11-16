@@ -1545,6 +1545,14 @@ object SettingsCatalogue {
                     get = { it.iconSwipeIndicator },
                     set = { viewModel.set(Pref.iconSwipeIndicator, it) }
                 ),
+                rows.color(
+                    R.string.swipe_mark_color, { it.swipeMarkColor },
+                    subtitle = { prefs ->
+                        if (prefs.swipeMarkColor.isBlank()) context.getString(R.string.color_white)
+                        else colorName(context, prefs.swipeMarkColor)
+                    }
+                ) { viewModel.set(Pref.swipeMarkColor, it) }
+                    .hiddenWhen { needsOn(R.string.icon_swipe_indicator, !it.iconSwipeIndicator) },
                 SettingItem.Toggle(
                     R.string.themed_icons,
                     get = { it.themedIcons },
