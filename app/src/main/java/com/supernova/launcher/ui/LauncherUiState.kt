@@ -14,6 +14,9 @@ data class LauncherUiState(
     val pausedWorkProfiles: Set<Long> = emptySet(),
     val currentPage: Int = 0,
     val iconGeneration: Int = 0,
+    // Bumped as the store-category lookup saves answers (StoreSync), so
+    // the groups they sort apps into are drawn again.
+    val storeGeneration: Int = 0,
     // False only for the stateIn placeholder; the collector skips rendering
     // until the real persisted state has decoded, killing the empty-then-
     // populated first-frame flash.

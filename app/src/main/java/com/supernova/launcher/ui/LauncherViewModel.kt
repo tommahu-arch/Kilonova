@@ -21,6 +21,9 @@ import com.supernova.launcher.data.DrawerGroup
 import com.supernova.launcher.data.DrawerGroupEdit
 import com.supernova.launcher.data.DrawerGroupOrder
 import com.supernova.launcher.data.DrawerGroupType
+import com.supernova.launcher.data.StorePresets
+import com.supernova.launcher.data.StoreSorting
+import com.supernova.launcher.store.StoreSync
 import com.supernova.launcher.data.DrawerTarget
 import com.supernova.launcher.data.FolderMove
 import com.supernova.launcher.data.FolderToDrawer
@@ -84,6 +87,12 @@ class LauncherViewModel(
             LauncherViewModel(graph.application, graph.repository, graph.preferences, graph.catalog) as T
     }
 
+    private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
+    // Store categories (Drawer groups): the lookup and its cache, shared by
+    // every screen of the process.
+    val store: StoreSync = StoreSync.get(application)
+
     private val appsFlow = MutableStateFlow(emptyList<LaunchableApp>())
     private val privateSpaceFlow = MutableStateFlow<PrivateSpace?>(null)
     private val pausedWorkFlow = MutableStateFlow(emptySet<Long>())
@@ -120,10 +129,10 @@ class LauncherViewModel(
     val state = combine(
         repository.modelFlow,
         preferences.flow,
-        combine(appsFlow, privateSpaceFlow, pausedWorkFlow, ::Triple),
+        combine(appsFlow, privateSpaceFlow, pausedWorkFlow, store.changes, ::Quad),
         currentPageFlow,
         iconGeneration
-    ) { model, prefs, (apps, privateSpace, pausedWork), page, generation ->
+    ) { model, prefs, (apps, privateSpace, pausedWork, storeGeneration), page, generation ->
         LauncherUiState(
             model = model,
             prefs = prefs,
@@ -132,6 +141,7 @@ class LauncherViewModel(
             pausedWorkProfiles = pausedWork,
             currentPage = page,
             iconGeneration = generation,
+            storeGeneration = storeGeneration,
             loaded = true,
             // 0 means the icon configuration has not been applied yet, so
             // nothing has been warmed; see the startup scan in init.
@@ -1163,9 +1173,80 @@ class LauncherViewModel(
     fun hasWorkApps(): Boolean =
         workPaused() || state.value.apps.any { it.userSerial != 0L && !it.privateSpace }
 
-    fun drawerGroups(): List<DrawerGroup> =
+    // The groups as stored: what is written back, and what a group's own
+    // page edits (its members are the ones picked by hand).
+    fun storedDrawerGroups(): List<DrawerGroup> =
         state.value.prefs.drawerGroups.mapNotNull(DrawerGroup::decode)
             .sortedWith(compareBy<DrawerGroup> { it.order }.then(LabelOrder.by { it.name }))
+
+    // The groups as the drawer shows them: with the apps their store
+    // categories sort into them added to their members. Never write this
+    // list back, or those apps would become picked by hand.
+    fun drawerGroups(): List<DrawerGroup> {
+        val stored = storedDrawerGroups()
+        if (stored.none { it.storeCats.isNotEmpty() }) return stored
+        return StoreSorting.withAuto(stored, autoMembers(stored))
+    }
+
+    private class AutoKey(val groups: Set<String>, val apps: List<LaunchableApp>, val generation: Int)
+
+    private var autoKey: AutoKey? = null
+    private var autoValue: Map<String, Set<String>> = emptyMap()
+
+    // Sorting every app is a lookup each; it is redone only when the stored
+    // groups, the app list or the answers changed.
+    private fun autoMembers(stored: List<DrawerGroup>): Map<String, Set<String>> {
+        val current = state.value
+        val last = autoKey
+        if (last != null && last.groups == current.prefs.drawerGroups && last.apps === current.apps &&
+            last.generation == current.storeGeneration
+        ) {
+            return autoValue
+        }
+        val manual = stored.flatMapTo(HashSet()) { it.members }
+        val apps = visibleApps().map { StoreSorting.App(hiddenKey(it), it.packageName) }
+        autoValue = StoreSorting.autoMembers(stored, apps, manual, store.cache::info)
+        autoKey = AutoKey(current.prefs.drawerGroups, current.apps, current.storeGeneration)
+        return autoValue
+    }
+
+    // Starts the lookup for the installed apps (a forced one ignores a metered
+    // connection and what is still fresh); only while some group sorts by store.
+    fun syncStoreCategories(force: Boolean = false) {
+        if (!force && storedDrawerGroups().none { it.storeCats.isNotEmpty() }) return
+        store.start(state.value.apps.map { it.packageName }.distinct(), force)
+    }
+
+    // A group's store categories: the keys move to it from any group that held
+    // them (a key sorts into one group only).
+    fun assignStoreCategories(name: String, keys: Set<String>) {
+        viewModelScope.launch {
+            preferences.updateDrawerGroups { StoreSorting.assign(it, name, keys) }
+        }
+    }
+
+    // A group's store categories, replaced by the picks made for one store.
+    fun setStoreCategories(name: String, prefix: String, keys: Set<String>) {
+        viewModelScope.launch {
+            preferences.updateDrawerGroups { groups ->
+                val moved = StoreSorting.assign(groups, name, keys)
+                moved.map { group ->
+                    if (group.name != name) group
+                    else group.copy(storeCats = group.storeCats.filterNot { it.startsWith(prefix) && it !in keys }.toSet())
+                }
+            }
+        }
+    }
+
+    // The Drawer groups page's "Add Play Store groups": one group per Play
+    // category as Play names them, each with its F-Droid mapping, the
+    // Samsung and Unsorted ones last. Groups already there by the same name
+    // only gain the categories no group holds yet.
+    fun addStorePresets(type: DrawerGroupType) {
+        viewModelScope.launch {
+            preferences.updateDrawerGroups { StorePresets.apply(it, type) }
+        }
+    }
 
     // TAB groups drive the tab bar; FOLDER groups render as drawer folders.
     fun drawerTabGroups(): List<DrawerGroup> =

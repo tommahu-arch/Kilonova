@@ -586,7 +586,10 @@ data class DrawerGroup(
     val iconPack: String? = null,
     val iconName: String? = null,
     val iconBase64: String? = null,
-    val iconRaw: Boolean = false
+    val iconRaw: Boolean = false,
+    // The store categories (StoreCategories keys) whose apps join this group
+    // by themselves, on top of the members picked by hand.
+    val storeCats: Set<String> = emptySet()
 ) {
     val hasCustomIcon: Boolean get() = iconName != null || !iconBase64.isNullOrEmpty()
 
@@ -605,10 +608,11 @@ data class DrawerGroup(
             true -> KEEP_MARKER
             false -> MOVE_MARKER
         }
+        val icon = "${iconPack.orEmpty()}|${iconName.orEmpty()}|${if (iconRaw) RAW_MARKER else ""}|${iconBase64.orEmpty()}"
+        val stores = storeCats.sorted().joinToString(",") { StoreCategories.escape(it) }
         return when {
-            hasCustomIcon ->
-                "$base|$keep|${iconPack.orEmpty()}|${iconName.orEmpty()}|" +
-                    "${if (iconRaw) RAW_MARKER else ""}|${iconBase64.orEmpty()}"
+            stores.isNotEmpty() -> "$base|$keep|$icon|$stores"
+            hasCustomIcon -> "$base|$keep|$icon"
             keepInMain == null -> base
             else -> "$base|$keep"
         }
@@ -624,6 +628,7 @@ data class DrawerGroup(
         private const val ICON_RAW_FIELD = 8
         private const val ICON_PHOTO_FIELD = 9
         private const val RAW_MARKER = "raw"
+        private const val STORE_FIELD = 10
 
         fun decode(raw: String): DrawerGroup? {
             val parts = raw.split('|')
@@ -645,7 +650,9 @@ data class DrawerGroup(
                 iconPack = parts.getOrNull(ICON_PACK_FIELD)?.ifEmpty { null },
                 iconName = parts.getOrNull(ICON_NAME_FIELD)?.ifEmpty { null },
                 iconBase64 = parts.getOrNull(ICON_PHOTO_FIELD)?.ifEmpty { null },
-                iconRaw = parts.getOrNull(ICON_RAW_FIELD) == RAW_MARKER
+                iconRaw = parts.getOrNull(ICON_RAW_FIELD) == RAW_MARKER,
+                storeCats = parts.getOrNull(STORE_FIELD).orEmpty().split(',')
+                    .filter { it.isNotBlank() }.map { StoreCategories.unescape(it) }.toSet()
             )
         }
     }
