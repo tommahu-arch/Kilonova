@@ -241,6 +241,7 @@ object Pref {
     val iconShadow = bool("icon_shadow")
     val iconGlass = choice("icon_glass", IconGlass.entries)
     val iconSwipeIndicator = bool("icon_swipe_indicator")
+    val swipeMarkColor = text("swipe_mark_color")
     val themedIcons = bool("themed_icons")
     val themedIconsAutogen = bool("themed_icons_autogen")
     val lockMethod = choice("lock_method", LockMethod.entries)

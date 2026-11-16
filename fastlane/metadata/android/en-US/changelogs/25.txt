@@ -1,0 +1,4 @@
+Swipe mark color.
+
+- Icons > Swipe mark color: the bar under icons with a swipe action (and swipe-to-open folders) has its own color. Default is white; pick a color or type any hex with Custom color
+- The bar no longer follows Label color

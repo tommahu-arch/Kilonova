@@ -331,6 +331,8 @@ data class LauncherPrefs(
     // is invisible without it, so it stays on by default; it only ever draws
     // on icons that actually carry one.
     val iconSwipeIndicator: Boolean = true,
+    // The swipe mark's color: "" = white, else #AARRGGBB.
+    val swipeMarkColor: String = "",
     // Draw adaptive icons' monochrome layer, palette-tinted (API 33+).
     val themedIcons: Boolean = false,
     // Synthesize a monochrome layer for apps that ship none (D8). On, so
