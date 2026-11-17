@@ -1397,6 +1397,12 @@ class LauncherActivity :
             onFolderLongPress = ::longPressDrawerFolder,
             onTabMenu = ::showDrawerTabMenu,
             onSelectTabApps = ::showDrawerGroupChecklist,
+            // Add group: the New group sheet, on Folder, then its Select apps.
+            onAddGroup = {
+                com.supernova.launcher.ui.settings.groups.NewGroupSheet.show(
+                    this, viewModel, com.supernova.launcher.data.DrawerGroupType.FOLDER
+                ) { created -> showDrawerGroupChecklist(created) }
+            },
             customTabIcon = { group ->
                 itemIcons.customFolderIcon(group.iconBase64, group.iconPack, group.iconName, group.iconRaw)
             }

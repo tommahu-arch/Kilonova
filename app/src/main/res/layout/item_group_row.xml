@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- A tab or folder on the Drawer groups page: a picture of its apps, its
      name (and a Default or Smart tag), what it holds, and the handle that
-     drags it to a new place. The handle sits in the 48dp control slot that
-     ends 4dp in from the card, as every settings row's control does. -->
+     drags it to a new place. The handle sits first, in a 48dp control slot 4dp in
+     from the card. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -11,8 +11,17 @@
     android:gravity="center_vertical"
     android:minHeight="68dp"
     android:orientation="horizontal"
-    android:paddingStart="@dimen/space_md"
+    android:paddingStart="@dimen/space_xs"
     android:paddingEnd="@dimen/space_xs">
+
+    <ImageView
+        android:id="@+id/groupHandle"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:contentDescription="@string/card_reorder"
+        android:padding="@dimen/space_ms"
+        android:src="@drawable/ic_drag_handle"
+        app:tint="@color/textSecondary" />
 
     <ImageView
         android:id="@+id/groupIcon"
@@ -100,12 +109,4 @@
         android:padding="@dimen/space_ms"
         android:src="@drawable/ic_store_fdroid" />
 
-    <ImageView
-        android:id="@+id/groupHandle"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:contentDescription="@string/card_reorder"
-        android:padding="@dimen/space_ms"
-        android:src="@drawable/ic_drag_handle"
-        app:tint="@color/textSecondary" />
 </LinearLayout>

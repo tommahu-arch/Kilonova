@@ -59,7 +59,9 @@ class DrawerController(
     // An empty group tab's "Select apps": the picker for that group.
     private val onSelectTabApps: (DrawerGroup) -> Unit = {},
     // A group tab's picked icon (pack, app icon or photo), null for none.
-    private val customTabIcon: (DrawerGroup) -> Drawable? = { null }
+    private val customTabIcon: (DrawerGroup) -> Drawable? = { null },
+    // The Add group button.
+    private val onAddGroup: () -> Unit = {}
 ) {
 
     // Tab identity: null = All (or Personal when the work tab is on).
@@ -333,6 +335,8 @@ class DrawerController(
         if (show == searchingExternally) return
         searchingExternally = show
         binding.drawerSearchResults.visibility = if (show) View.VISIBLE else View.GONE
+        binding.drawerAddGroup.visibility =
+            if (!show && viewModel.state.value.prefs.drawerAddGroupButton) View.VISIBLE else View.GONE
         applyListVisibility()
         if (show) {
             if (binding.drawerTabs.visibility == View.VISIBLE) {
@@ -389,14 +393,21 @@ class DrawerController(
         val endPad = context.dp(prefs.drawerPaddingV)
         binding.drawerSheet.setPadding(barInsets.left, barInsets.top + liftedRow, barInsets.right, keyboardInset)
         binding.drawerSearchResults.setPadding(0, 0, 0, context.dp(18) + listInset)
+        // The Add group button floats over the list's bottom; the list
+        // leaves room for it.
+        val addGroup = prefs.drawerAddGroupButton
+        val addRoom = if (addGroup) context.dp(ADD_GROUP_ROOM_DP) else 0
+        (binding.drawerAddGroup.layoutParams as android.widget.FrameLayout.LayoutParams).bottomMargin =
+            context.dp(ADD_GROUP_MARGIN_DP) + listInset
+        binding.drawerAddGroup.visibility = if (addGroup && !searchingExternally) View.VISIBLE else View.GONE
         // clipToPadding is false, so the list scrolls under the navigation bar
         // and comes to rest above it.
-        binding.drawerRecycler.setPadding(sidePad, endPad, sidePad, context.dp(18) + listInset + endPad)
+        binding.drawerRecycler.setPadding(sidePad, endPad, sidePad, context.dp(18) + listInset + endPad + addRoom)
         // A page doesn't scroll, so the paged style keeps its pages where the
         // list comes to rest, and cuts them to fit there (syncPages). The
         // sides pad each page instead (PageHolder), so a page effect still
         // runs edge to edge.
-        binding.drawerPager.setPadding(0, endPad, 0, context.dp(18) + listInset + endPad)
+        binding.drawerPager.setPadding(0, endPad, 0, context.dp(18) + listInset + endPad + addRoom)
         // Rows fade out towards both ends of the list. The bottom fade takes
         // in the navigation bar the list scrolls under, so a row is all but
         // gone by the time it is behind the buttons.
@@ -476,6 +487,7 @@ class DrawerController(
             insets
         }
         binding.drawerRecycler.adapter = adapter
+        binding.drawerAddGroup.setOnClickListener { onAddGroup() }
         // Full-list rebinds shouldn't cross-fade every tile, and a deeper
         // view cache keeps flings from re-inflating rows.
         binding.drawerRecycler.itemAnimator = null
@@ -1749,7 +1761,7 @@ class DrawerController(
             // The automatic column count and the page rows follow the icon
             // size (columnCount, syncPages).
             iconScale(prefs),
-            prefs.drawerPaddingH, prefs.drawerPaddingV
+            prefs.drawerPaddingH, prefs.drawerPaddingV, prefs.drawerAddGroupButton
         )
         if (key == appliedStyle) return
         appliedStyle = key
@@ -2257,6 +2269,8 @@ class DrawerController(
         const val SEARCH_ROW_HEIGHT_DP = 74
         // How far in from the list's top and bottom edges its rows fade.
         const val LIST_FADE_DP = 32
+        const val ADD_GROUP_ROOM_DP = 64
+        const val ADD_GROUP_MARGIN_DP = 12
         const val FIELD_END_WITH_BUTTONS_DP = 4
         // item_drawer_app's 4dp side padding, both sides.
         const val TILE_SIDE_PADDING_DP = 8

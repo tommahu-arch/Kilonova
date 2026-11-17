@@ -516,6 +516,17 @@
     <string name="store_move_message">%1$s belongs to %2$s. It will leave that group and go to %3$s.</string>
     <string name="store_move">Move</string>
     <string name="store_search_hint">Search categories</string>
+    <string name="store_view_metadata">View apps metadata</string>
+    <string name="store_metadata_title">Apps metadata</string>
+    <string name="store_metadata_search">Search apps or categories</string>
+    <string name="store_metadata_line">Play: %1$s\nF-Droid: %2$s\nGroup: %3$s</string>
+    <string name="store_metadata_not_asked">not looked up yet</string>
+    <string name="store_metadata_none">none</string>
+    <string name="store_metadata_ungrouped">none by store</string>
+    <string name="store_metadata_close">Close</string>
+    <string name="add_group">Add group</string>
+    <string name="drawer_add_group_button">Add group button</string>
+    <string name="drawer_add_group_button_summary">A button at the bottom of the drawer to make a tab or folder</string>
     <string name="store_done">Done</string>
     <string name="groups_intro">Sort the app drawer your way. A group is a set of apps shown as a tab or as a folder.</string>
     <string name="groups_tabs_blurb">Pages of the drawer you swipe between, such as Games or Travel.</string>
