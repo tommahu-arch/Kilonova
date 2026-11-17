@@ -61,4 +61,10 @@ sealed class GroupListRow {
     data class Empty(val type: DrawerGroupType) : GroupListRow() {
         override val key: String get() = "empty:$type"
     }
+
+    // The store card: where the categories come from, how fresh they are, and
+    // its two actions.
+    data class Store(val status: String, val running: Boolean) : GroupListRow() {
+        override val key: String get() = "store"
+    }
 }

@@ -12,6 +12,7 @@ import com.supernova.launcher.databinding.ItemGroupCaptionBinding
 import com.supernova.launcher.databinding.ItemGroupEmptyBinding
 import com.supernova.launcher.databinding.ItemGroupPreviewBinding
 import com.supernova.launcher.databinding.ItemGroupRowBinding
+import com.supernova.launcher.databinding.ItemGroupStoreBinding
 import com.supernova.launcher.databinding.ItemSettingGroupLabelBinding
 
 // The Drawer groups page's list. A drag moves a row here first, with the tab
@@ -29,6 +30,10 @@ class GroupListAdapter(
         fun step(group: DrawerGroup, delta: Int)
         // A press on a row's handle.
         fun startDrag(holder: RecyclerView.ViewHolder)
+        // A store button on a group's row.
+        fun pickStore(group: DrawerGroup, store: StoreCategorySheet.Store)
+        fun addStoreGroups()
+        fun syncStore()
     }
 
     private var rows: List<GroupListRow> = emptyList()
@@ -76,6 +81,7 @@ class GroupListAdapter(
         is GroupListRow.Add -> R.layout.item_group_add
         is GroupListRow.Caption -> R.layout.item_group_caption
         is GroupListRow.Empty -> R.layout.item_group_empty
+        is GroupListRow.Store -> R.layout.item_group_store
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
@@ -90,6 +96,8 @@ class GroupListAdapter(
             R.layout.item_group_add -> GroupAddHolder(ItemGroupAddBinding.inflate(inflater, parent, false), listener)
             R.layout.item_group_caption ->
                 GroupCaptionHolder(ItemGroupCaptionBinding.inflate(inflater, parent, false))
+            R.layout.item_group_store ->
+                GroupStoreHolder(ItemGroupStoreBinding.inflate(inflater, parent, false), listener)
             else -> GroupEmptyHolder(ItemGroupEmptyBinding.inflate(inflater, parent, false), listener)
         }
     }
@@ -102,6 +110,7 @@ class GroupListAdapter(
             is GroupListRow.Add -> (holder as GroupAddHolder).bind(row)
             is GroupListRow.Caption -> (holder as GroupCaptionHolder).bind(row)
             is GroupListRow.Empty -> (holder as GroupEmptyHolder).bind(row, cardColor)
+            is GroupListRow.Store -> (holder as GroupStoreHolder).bind(row, cardColor)
         }
     }
 

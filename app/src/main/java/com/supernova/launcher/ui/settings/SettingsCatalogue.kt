@@ -90,6 +90,7 @@ object SettingsCatalogue {
         val promptHexColor: (Int, String, (String) -> Unit) -> Unit = { _, _, _ -> },
         val openStylePicker: (SurfaceId) -> Unit = {},
         val showAutoBackups: () -> Unit = {},
+        val backupLocation: () -> Unit = {},
         val exportBackup: () -> Unit = {},
         val importBackup: () -> Unit = {},
         // Phase 8 backup extras: ACTION_SEND a fresh export, factory-reset
@@ -1855,6 +1856,15 @@ object SettingsCatalogue {
         SettingsSection(
             R.string.settings_section_backup,
             listOf(
+                SettingItem.Row(
+                    R.string.backup_location,
+                    subtitle = { prefs ->
+                        prefs.backupFolder.takeIf { it.isNotEmpty() }?.let {
+                            android.net.Uri.decode(it).substringAfterLast(':').ifEmpty { it }
+                        } ?: context.getString(R.string.backup_location_none)
+                    },
+                    onClick = actions.backupLocation
+                ),
                 SettingItem.Row(R.string.export_backup, onClick = actions.exportBackup),
                 SettingItem.Row(
                     R.string.import_backup,

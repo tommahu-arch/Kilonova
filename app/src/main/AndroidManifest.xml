@@ -2,6 +2,11 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+    <!-- Kilonova: Drawer groups > store categories reads F-Droid's public
+         index and the Play Store page of each installed app (package name
+         only) to learn its category; answers are cached on the phone. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- The Activities picker (widget sheet > Supernova > Activities) lists
          every installed package, as a launcher's does: the activity people
          pick is often in one with no drawer icon (a system settings screen),

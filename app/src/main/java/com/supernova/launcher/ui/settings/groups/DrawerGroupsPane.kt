@@ -4,9 +4,14 @@ import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.launch
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.supernova.launcher.R
 import com.supernova.launcher.data.DrawerGroup
@@ -77,8 +82,17 @@ class DrawerGroupsPane(
     init {
         binding.groupsList.layoutManager = LinearLayoutManager(activity)
         binding.groupsList.adapter = adapter
+        // The store card's counter changes often; a fade on each change flickers.
+        (binding.groupsList.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)
+            ?.supportsChangeAnimations = false
         binding.groupsList.addItemDecoration(cards)
         touchHelper.attachToRecyclerView(binding.groupsList)
+        // The store card's line follows the lookup as it runs.
+        activity.lifecycleScope.launch {
+            activity.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.store.status.collect { refresh() }
+            }
+        }
     }
 
     // On the page, or off it. A group's page restored after a recreate comes
@@ -153,6 +167,34 @@ class DrawerGroupsPane(
         }
     }
 
+    override fun pickStore(group: DrawerGroup, store: StoreCategorySheet.Store) {
+        // Against what is stored: the group's own picks, not the apps it is
+        // given by store.
+        val stored = viewModel.storedDrawerGroups()
+        val current = stored.firstOrNull { it.name == group.name } ?: group
+        StoreCategorySheet.show(activity, store, current, stored.filter { it.name != current.name }) { scope, picked ->
+            viewModel.setStoreCategories(current.name, scope, picked)
+            viewModel.syncStoreCategories(force = false)
+        }
+    }
+
+    override fun addStoreGroups() {
+        MaterialAlertDialogBuilder(activity)
+            .setTitle(R.string.store_add_title)
+            .setMessage(R.string.store_add_message)
+            .setNeutralButton(R.string.cancel, null)
+            .setNegativeButton(R.string.store_add_tabs) { _, _ -> addPresets(DrawerGroupType.TAB) }
+            .setPositiveButton(R.string.store_add_folders) { _, _ -> addPresets(DrawerGroupType.FOLDER) }
+            .show()
+    }
+
+    private fun addPresets(type: DrawerGroupType) {
+        viewModel.addStorePresets(type)
+        viewModel.syncStoreCategories(force = true)
+    }
+
+    override fun syncStore() = viewModel.syncStoreCategories(force = true)
+
     override fun startDrag(holder: RecyclerView.ViewHolder) = touchHelper.startDrag(holder)
 
     override fun step(group: DrawerGroup, delta: Int) = viewModel.moveGroup(group.name, delta)
@@ -171,7 +213,7 @@ class DrawerGroupsPane(
     // Deleted at once, with Undo: the list as it stood goes with the
     // snackbar, to bring the group and its place in its tabs back.
     private fun delete(group: DrawerGroup) {
-        val before = viewModel.drawerGroups()
+        val before = viewModel.storedDrawerGroups()
         viewModel.removeGroup(group.name)
         editing = null
         awaiting = null

@@ -81,6 +81,25 @@
             android:textSize="@dimen/text_secondary" />
     </LinearLayout>
 
+    <!-- One button per store; lit when the group takes categories from it. -->
+    <ImageView
+        android:id="@+id/groupStorePlay"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/store_play_categories"
+        android:padding="@dimen/space_ms"
+        android:src="@drawable/ic_store_play" />
+
+    <ImageView
+        android:id="@+id/groupStoreFdroid"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/store_fdroid_categories"
+        android:padding="@dimen/space_ms"
+        android:src="@drawable/ic_store_fdroid" />
+
     <ImageView
         android:id="@+id/groupHandle"
         android:layout_width="48dp"
