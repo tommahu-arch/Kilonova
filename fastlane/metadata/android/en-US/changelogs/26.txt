@@ -1,0 +1,7 @@
+Store categories and backup folder.
+
+- App drawer > Drawer groups: groups can take apps by Google Play or F-Droid category. Each group has a Play and an F-Droid button with a searchable category picker; a category belongs to one group, and taking it from another asks first
+- Add Play Store groups makes a group per Play category with an F-Droid mapping, plus Samsung built-in apps and Unsorted apps. Apps you picked by hand stay where they are
+- Categories are looked up from F-Droid's public index and one Play page per app (package name only) and cached on the device. This adds the Internet permission
+- Backup > Backup location: choose or create the folder the backup pickers open in
+- Backups are now named kilonova-backup by default
