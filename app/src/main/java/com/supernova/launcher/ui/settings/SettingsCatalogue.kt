@@ -983,6 +983,12 @@ object SettingsCatalogue {
                     set = { viewModel.set(Pref.drawerHideAllTab, it) },
                     visibleIf = { viewModel.drawerTabGroups().isNotEmpty() }
                 ),
+                SettingItem.Toggle(
+                    R.string.drawer_add_group_button,
+                    get = { it.drawerAddGroupButton },
+                    set = { viewModel.set(Pref.drawerAddGroupButton, it) },
+                    subtitle = R.string.drawer_add_group_button_summary
+                ),
                 SettingItem.Row(R.string.hidden_apps, onClick = actions.editHiddenApps),
                 // A page of its own (ui/settings/groups); the row counts
                 // what it holds.

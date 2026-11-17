@@ -362,6 +362,20 @@
                 android:clipToPadding="false"
                 android:visibility="gone" />
 
+            <!-- Kilonova: makes a drawer tab or folder; floats at the bottom
+                 of the list, above the navigation bar (DrawerController
+                 sets its margin) and gone while a search shows. -->
+            <Button
+                android:id="@+id/drawerAddGroup"
+                style="@style/Widget.Supernova.Button.Tonal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|center_horizontal"
+                android:elevation="4dp"
+                android:text="@string/add_group"
+                android:textColor="?attr/colorAccentOnRaised"
+                android:visibility="gone" />
+
             <!-- The fast scrollbar: the visible 32dp of its 58dp scroller,
                  which hangs 26dp past the list's edge. -->
             <com.supernova.launcher.ui.FastScrollerView

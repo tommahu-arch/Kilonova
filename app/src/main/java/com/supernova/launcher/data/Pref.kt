@@ -228,6 +228,7 @@ object Pref {
     val drawerWorkTab = bool("drawer_work_tab")
     val drawerDefaultTab = text("drawer_default_tab")
     val drawerHideAllTab = bool("drawer_hide_all_tab")
+    val drawerAddGroupButton = bool("drawer_add_group_button")
     val labelSize = int("label_size", LABEL_SIZE_MIN..LABEL_SIZE_MAX)
     val labelConfig = text("label_config")
     val labelColor = text("label_color")

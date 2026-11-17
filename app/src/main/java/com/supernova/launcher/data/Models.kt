@@ -311,6 +311,8 @@ data class LauncherPrefs(
     // implicit All tab is suppressed once groups exist.
     val drawerDefaultTab: String = "",
     val drawerHideAllTab: Boolean = false,
+    // The Add group button floating at the drawer's bottom.
+    val drawerAddGroupButton: Boolean = true,
     val labelSize: Int = 12,
     // Per-context (dock/drawer/folder) label overrides as one JSON document
     // (see ui/LabelConfig); "" = every context inherits the desktop labels.

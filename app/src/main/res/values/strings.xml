@@ -524,6 +524,9 @@
     <string name="store_metadata_none">none</string>
     <string name="store_metadata_ungrouped">none by store</string>
     <string name="store_metadata_close">Close</string>
+    <string name="add_group">Add group</string>
+    <string name="drawer_add_group_button">Add group button</string>
+    <string name="drawer_add_group_button_summary">A button at the bottom of the drawer to make a tab or folder</string>
     <string name="store_done">Done</string>
     <string name="groups_intro">Sort the app drawer your way. A group is a set of apps shown as a tab or as a folder.</string>
     <string name="groups_tabs_blurb">Pages of the drawer you swipe between, such as Games or Travel.</string>
