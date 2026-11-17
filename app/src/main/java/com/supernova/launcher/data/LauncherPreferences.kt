@@ -96,6 +96,16 @@ class LauncherPreferences(private val context: Context) {
     var latest: LauncherPrefs? = null
         private set
 
+    // See StoreRepair: once, before the groups are used.
+    suspend fun repairLegacyStoreGroups() {
+        context.supernovaStore.edit { prefs ->
+            val result = StoreRepair.repair(
+                prefs[Pref.drawerGroups.key].orEmpty(), prefs[Pref.drawerDefaultTab.key].orEmpty()
+            ) ?: return@edit
+            prefs[Pref.drawerGroups.key] = result.entries
+        }
+    }
+
     suspend fun saveDrawerGroup(group: DrawerGroup) {
         context.supernovaStore.edit { prefs ->
             val others = prefs[Pref.drawerGroups.key].orEmpty()

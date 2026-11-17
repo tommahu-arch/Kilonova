@@ -1,0 +1,4 @@
+Fix: store categories lost after updating to 0.0.7.
+
+- Groups saved by 0.0.6 get their Play and F-Droid categories back
+- A category you had given to a group stays there if "Add Play Store groups" was run since
