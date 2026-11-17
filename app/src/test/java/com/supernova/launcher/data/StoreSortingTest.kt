@@ -132,3 +132,29 @@ class StoreSortingTest {
         assertEquals(emptySet<String>(), DrawerGroup.decode("Old|0/a/Main|1|TAB||keep")!!.storeCats)
     }
 }
+
+class StoreSortingIdTest {
+    @Test
+    fun groupsSharingANameAreToldApartById() {
+        val a = DrawerGroup("Same", emptySet(), id = "#a", storeCats = setOf("play:X"))
+        val b = DrawerGroup("Same", emptySet(), id = "#b")
+        val moved = StoreSorting.assign(listOf(a, b), "#b", setOf("play:X"))
+        assertEquals(emptySet<String>(), moved.first { it.id == "#a" }.storeCats)
+        assertEquals(setOf("play:X"), moved.first { it.id == "#b" }.storeCats)
+        val auto = StoreSorting.autoMembers(
+            listOf(a, b), listOf(StoreSorting.App("0/p/M", "p")), emptySet()
+        ) { StoreInfo("X", emptyList()) }
+        assertEquals(setOf("0/p/M"), auto["#a"])
+        assertEquals(null, auto["#b"])
+    }
+
+    @Test
+    fun idAndStoreCategoriesRoundTrip() {
+        val g = DrawerGroup("Tools", setOf("0/a/Main"), id = "#abc123", storeCats = setOf("play:TOOLS"))
+        assertEquals(g, DrawerGroup.decode(g.encode()))
+        val plainName = DrawerGroup("Tools", emptySet(), storeCats = setOf("play:TOOLS"))
+        assertEquals(plainName, DrawerGroup.decode(plainName.encode()))
+        // Upstream's format: id in field 10, no store field.
+        assertEquals("#x", DrawerGroup.decode("N|0/a/Main|1|TAB|||||||#x")!!.id)
+    }
+}

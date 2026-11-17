@@ -1,3 +1,4 @@
 Search when picking an action.
 
 - The action picker (folder Tap action, icon swipes, gestures) has a Search apps box above its tabs; it filters the tab you are on and keeps its text when you switch tabs
+||||||| 169d6eb

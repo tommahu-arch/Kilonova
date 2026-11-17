@@ -12,15 +12,18 @@ object StorePresets {
     fun apply(groups: List<DrawerGroup>, type: DrawerGroupType): List<DrawerGroup> {
         val taken = groups.flatMapTo(HashSet()) { it.storeCats }
         val made = LinkedHashMap<String, DrawerGroup>()
-        groups.forEach { made[it.name] = it }
+        groups.forEach { made[it.id] = it }
         var order = groups.map { it.order }.filter { it != Int.MAX_VALUE }.maxOrNull()?.plus(1) ?: 0
 
         fun add(name: String, keys: List<String>) {
             val free = keys.filter { taken.add(it) }.toSet()
-            val existing = made[name]
-            when {
-                existing != null -> made[name] = existing.copy(storeCats = existing.storeCats + free)
-                else -> made[name] = DrawerGroup(name, emptySet(), order = order++, type = type, storeCats = free)
+            // A group already going by the name is the one to top up.
+            val existing = made.values.firstOrNull { it.name == name }
+            if (existing != null) {
+                made[existing.id] = existing.copy(storeCats = existing.storeCats + free)
+            } else {
+                val fresh = DrawerGroup(name, emptySet(), order = order++, type = type, storeCats = free, id = DrawerGroup.newId())
+                made[fresh.id] = fresh
             }
         }
 

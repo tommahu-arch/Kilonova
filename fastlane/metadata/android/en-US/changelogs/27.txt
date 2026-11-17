@@ -1,0 +1,7 @@
+Upstream Supernova 0.2.2 and 0.2.3 merged in.
+
+- Edit icons with a live preview, simpler feed, large 2x2 icons, move a home folder to the drawer
+- Any colour for Style surfaces; status bar icons can follow the wallpaper
+- Drawer tabs: drag to reorder, edit from the tab menu; groups may now share a name
+- On/off settings are switches; new apps go on a new page when home is full
+- Fixes: drawer crash with empty tabs, widget setup on Android 14, clone apps on the Work tab, drawer keyboard

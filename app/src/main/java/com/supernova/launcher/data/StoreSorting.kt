@@ -35,7 +35,7 @@ object StoreSorting {
         return StoreCategories.UNSORTED.takeIf { it in owned }
     }
 
-    // Each group's store-sorted members, as app keys. Apps picked into a
+    // Each group's (by id) store-sorted members, as app keys. Apps picked into a
     // group by hand (manual: the keys in any group's members) stay where
     // they were put.
     fun autoMembers(
@@ -45,7 +45,7 @@ object StoreSorting {
         infoOf: (String) -> StoreInfo?
     ): Map<String, Set<String>> {
         val owner = HashMap<String, String>()
-        groups.forEach { group -> group.storeCats.forEach { owner.putIfAbsent(it, group.name) } }
+        groups.forEach { group -> group.storeCats.forEach { owner.putIfAbsent(it, group.id) } }
         if (owner.isEmpty()) return emptyMap()
         val owned = owner.keys
         val result = HashMap<String, MutableSet<String>>()
@@ -61,14 +61,14 @@ object StoreSorting {
     // The groups with their store-sorted apps added to their members.
     fun withAuto(groups: List<DrawerGroup>, auto: Map<String, Set<String>>): List<DrawerGroup> =
         if (auto.isEmpty()) groups else groups.map { group ->
-            auto[group.name]?.let { group.copy(members = group.members + it) } ?: group
+            auto[group.id]?.let { group.copy(members = group.members + it) } ?: group
         }
 
     // A key moved to a group: it leaves the group that held it.
-    fun assign(groups: List<DrawerGroup>, name: String, keys: Set<String>): List<DrawerGroup> =
+    fun assign(groups: List<DrawerGroup>, id: String, keys: Set<String>): List<DrawerGroup> =
         groups.map { group ->
             when {
-                group.name == name -> group.copy(storeCats = group.storeCats + keys, smart = false)
+                group.id == id -> group.copy(storeCats = group.storeCats + keys, smart = false)
                 group.storeCats.any { it in keys } -> group.copy(storeCats = group.storeCats - keys, smart = false)
                 else -> group
             }

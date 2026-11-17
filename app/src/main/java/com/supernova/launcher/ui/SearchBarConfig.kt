@@ -61,11 +61,11 @@ data class DesktopSearchBarConfig(
         const val MAX_RADIUS = 24
 
         // The bar as a fresh install shows it: under the dock, with a
-        // shadow, the Assistant on the right and no text.
+        // shadow, Voice search on the right and no text.
         val FRESH = DesktopSearchBarConfig(
             placement = SearchBarPlacement.DOCK_BELOW.name,
             shadow = true,
-            chips = listOf(SearchBarChip.ASSISTANT.name),
+            chips = listOf(SearchBarChip.VOICE.name),
             hint = false
         )
     }
@@ -90,6 +90,8 @@ data class DrawerSearchBarConfig(
     // magnifier now. Kept so older configs and backups decode.
     val logo: String = "SEARCH",
     val logoMonochrome: Boolean = true,
+    // The "Search" text in the empty field, as the home bar's hint.
+    val hint: Boolean = true,
     // IconGlass name: the field as the icons' glass, as the home bar's
     // glass. It takes the place of the filled box and the outline.
     val glass: String = "OFF"
