@@ -6,7 +6,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.CheckedTextView
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.ListView
+import android.text.InputType
+import android.view.inputmethod.EditorInfo
+import androidx.core.widget.doAfterTextChanged
 import androidx.appcompat.app.AlertDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.supernova.launcher.R
@@ -66,18 +71,35 @@ object StoreCategorySheet {
         // Ticks the user confirmed to take from another group.
         val picked = items.filter { it.key in group.storeCats }.map { it.key }.toMutableSet()
 
+        // What the list shows: the entries whose name holds the search, a
+        // section header only with something under it. Ticks live in
+        // `picked`, not in the list, so they survive a search.
+        var shown: List<Entry> = entries
+        fun filter(query: String) {
+            val words = query.trim().lowercase().split(' ').filter { it.isNotEmpty() }
+            val hits = entries.filter { entry ->
+                entry is Entry.Item && words.all { entry.label.lowercase().contains(it) }
+            }
+            shown = entries.filterIndexed { index, entry ->
+                entry is Entry.Item && entry in hits ||
+                    entry is Entry.Header && entries.drop(index + 1).takeWhile { it !is Entry.Header }
+                        .any { it in hits }
+            }
+        }
+
         val list = ListView(context)
-        list.choiceMode = ListView.CHOICE_MODE_MULTIPLE
         list.divider = null
         lateinit var adapter: ArrayAdapter<Entry>
-        adapter = object : ArrayAdapter<Entry>(context, android.R.layout.simple_list_item_multiple_choice, entries) {
+        adapter = object : ArrayAdapter<Entry>(context, android.R.layout.simple_list_item_multiple_choice) {
+            override fun getCount() = shown.size
+            override fun getItem(position: Int) = shown[position]
             override fun getViewTypeCount() = 2
-            override fun getItemViewType(position: Int) = if (getItem(position) is Entry.Header) 0 else 1
-            override fun isEnabled(position: Int) = getItem(position) is Entry.Item
+            override fun getItemViewType(position: Int) = if (shown[position] is Entry.Header) 0 else 1
+            override fun isEnabled(position: Int) = shown[position] is Entry.Item
 
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
                 val view = super.getView(position, convertView, parent) as CheckedTextView
-                when (val entry = getItem(position)) {
+                when (val entry = shown[position]) {
                     is Entry.Header -> {
                         view.setText(entry.title)
                         view.checkMarkDrawable = null
@@ -86,31 +108,27 @@ object StoreCategorySheet {
                     }
                     is Entry.Item -> {
                         view.setTypeface(null, Typeface.NORMAL)
-                        view.text = if (entry.owner == null || entry.key in picked) {
-                            entry.label
-                        } else {
+                        val taken = entry.owner != null && entry.key !in picked
+                        view.text = if (taken) {
                             entry.label + "  ·  " + context.getString(R.string.store_taken_by, entry.owner)
+                        } else {
+                            entry.label
                         }
-                        view.alpha = if (entry.owner != null && entry.key !in picked) GREYED else 1f
+                        view.isChecked = entry.key in picked
+                        view.alpha = if (taken) GREYED else 1f
                     }
-                    null -> Unit
                 }
                 return view
             }
         }
         list.adapter = adapter
-        entries.forEachIndexed { index, entry ->
-            if (entry is Entry.Item && entry.key in picked) list.setItemChecked(index, true)
-        }
         list.setOnItemClickListener { _, _, position, _ ->
-            val entry = entries[position] as? Entry.Item ?: return@setOnItemClickListener
-            val checked = list.isItemChecked(position)
+            val entry = shown[position] as? Entry.Item ?: return@setOnItemClickListener
             when {
-                !checked -> picked.remove(entry.key)
-                entry.owner == null || entry.key in picked -> picked.add(entry.key)
+                entry.key in picked -> picked.remove(entry.key)
+                entry.owner == null -> picked.add(entry.key)
                 else -> {
-                    // Held by another group: undone until confirmed.
-                    list.setItemChecked(position, false)
+                    // Held by another group: only once confirmed.
                     MaterialAlertDialogBuilder(context)
                         .setTitle(context.getString(R.string.store_move_title, entry.owner))
                         .setMessage(
@@ -119,7 +137,6 @@ object StoreCategorySheet {
                         .setNegativeButton(R.string.cancel, null)
                         .setPositiveButton(R.string.store_move) { _, _ ->
                             picked.add(entry.key)
-                            list.setItemChecked(position, true)
                             adapter.notifyDataSetChanged()
                         }
                         .show()
@@ -128,13 +145,31 @@ object StoreCategorySheet {
             adapter.notifyDataSetChanged()
         }
 
+        val search = EditText(context).apply {
+            setHint(R.string.store_search_hint)
+            setSingleLine()
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            doAfterTextChanged {
+                filter(it?.toString().orEmpty())
+                adapter.notifyDataSetChanged()
+            }
+        }
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = (context.resources.displayMetrics.density * 20).toInt()
+            setPadding(pad, 0, pad, 0)
+            addView(search, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        }
+
         val dialog: AlertDialog = MaterialAlertDialogBuilder(context)
             .setTitle(
                 context.getString(
                     if (store == Store.PLAY) R.string.store_picker_play else R.string.store_picker_fdroid
                 ) + " · " + group.name
             )
-            .setView(list)
+            .setView(content)
             .setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.store_done) { _, _ -> onDone(scope, picked.toSet()) }
             .create()
