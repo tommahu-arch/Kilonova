@@ -203,6 +203,8 @@ class DrawerGroupsPane(
         viewModel.syncStoreCategories(force = true)
     }
 
+    override fun viewMetadata() = StoreMetadataSheet.show(activity, viewModel)
+
     override fun syncStore() = viewModel.syncStoreCategories(force = true)
 
     override fun startDrag(holder: RecyclerView.ViewHolder) = touchHelper.startDrag(holder)

@@ -34,6 +34,7 @@ class GroupListAdapter(
         fun pickStore(group: DrawerGroup, store: StoreCategorySheet.Store)
         fun addStoreGroups()
         fun syncStore()
+        fun viewMetadata()
     }
 
     private var rows: List<GroupListRow> = emptyList()

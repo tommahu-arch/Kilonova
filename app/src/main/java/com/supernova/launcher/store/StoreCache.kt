@@ -63,6 +63,19 @@ class StoreCache(private val dir: File, private val clock: () -> Long = System::
         return StoreInfo(entry?.category, fd)
     }
 
+    // Everything held for a package, for the metadata view: what Play said
+    // (playAsked: it was asked; category null: it names none), and F-Droid's.
+    class Details(val playAsked: Boolean, val playCategory: String?, val fdroid: List<String>)
+
+    fun details(packageName: String): Details {
+        val entry = loadedPlay()[packageName]
+        return Details(
+            playAsked = entry != null && entry.until > 0L,
+            playCategory = entry?.category,
+            fdroid = loadedFdroid().categories[packageName].orEmpty()
+        )
+    }
+
     // Packages that need a Play lookup now: none known to F-Droid with a
     // narrow category (that one would win over Play anyway), and no fresh
     // answer or recent failure.

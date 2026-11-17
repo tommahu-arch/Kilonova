@@ -200,5 +200,6 @@ internal class GroupStoreHolder(
         binding.storeSync.isEnabled = !row.running
         binding.storeAddGroups.setOnClickListener { listener.addStoreGroups() }
         binding.storeSync.setOnClickListener { listener.syncStore() }
+        binding.storeMetadata.setOnClickListener { listener.viewMetadata() }
     }
 }

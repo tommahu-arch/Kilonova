@@ -58,4 +58,13 @@
             android:text="@string/store_update_now"
             android:textColor="?attr/colorAccentOnRaised" />
     </LinearLayout>
+
+    <Button
+        android:id="@+id/storeMetadata"
+        style="@style/Widget.Supernova.Button.Tonal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/space_sm"
+        android:text="@string/store_view_metadata"
+        android:textColor="?attr/colorAccentOnRaised" />
 </LinearLayout>
