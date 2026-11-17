@@ -3,10 +3,12 @@ package com.supernova.launcher.ui
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.os.SystemClock
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.LinearLayout
@@ -51,29 +53,14 @@ class DrawerController(
     // A folder long-pressed: its menu, and a drag to the home screen.
     private val onFolderLongPress: (View, DrawerGroup, List<LaunchableApp>) -> Unit,
     // A tab's menu, anchored to the tab: a group tab's (its group as
-    // stored), or the All tab's (null).
-    private val onTabMenu: (View, DrawerGroup?) -> Unit = { _, _ -> },
+    // stored), or the All tab's (null). Handed back, so a drag of the tab
+    // can close it.
+    private val onTabMenu: (View, DrawerGroup?) -> SupernovaPopupMenu? = { _, _ -> null },
     // An empty group tab's "Select apps": the picker for that group.
     private val onSelectTabApps: (DrawerGroup) -> Unit = {},
     // A group tab's picked icon (pack, app icon or photo), null for none.
-    private val customTabIcon: (DrawerGroup) -> Drawable? = { null },
-    // Activated custom cards above the list (the drawer cards); null
-    // leaves the slot empty.
-    private val cards: CardHost? = null
+    private val customTabIcon: (DrawerGroup) -> Drawable? = { null }
 ) {
-
-    // The activity owns activation and the card renderer; the drawer only
-    // asks which cards are activated and for a view per card, and reports
-    // shown/hidden so the condition monitor runs no longer than needed.
-    interface CardHost {
-        fun onShown()
-
-        fun onHidden()
-
-        fun activatedCards(): List<com.supernova.launcher.feed.FeedCard>
-
-        fun cardView(parent: ViewGroup, card: com.supernova.launcher.feed.FeedCard): View
-    }
 
     // Tab identity: null = All (or Personal when the work tab is on).
     private object WorkTab
@@ -83,6 +70,13 @@ class DrawerController(
     private object PrivateTab
 
     val adapter = newCellAdapter()
+
+    // A group tab held and moved along the bar: the group tabs in a new order.
+    // The selected tab's indicator colour, which a tab drag hides meanwhile.
+    private var tabIndicatorColor = 0
+    private val tabReorder = TabReorder(binding.drawerTabs, indicatorColor = { tabIndicatorColor }) { names ->
+        viewModel.setGroupOrder(com.supernova.launcher.data.DrawerGroupType.TAB, names)
+    }
 
     private fun newCellAdapter(): AppDrawerAdapter = AppDrawerAdapter(
         appCatalog = viewModel.appCatalog(),
@@ -125,6 +119,16 @@ class DrawerController(
     // Set when a drag took the keyboard away; the sheet settling back open
     // (rather than dismissing) puts it back.
     private var imeSuspended = false
+    // A keyboard request still waiting on the field (see showKeyboard): the
+    // tries left before it gives up, and until when (uptime ms) a window
+    // that had no focus yet may still pick it up when focus arrives.
+    private var keyboardTriesLeft = 0
+    private var keyboardFocusDeadline = 0L
+    private val keyboardRetry = Runnable { tryShowKeyboard() }
+    // Checks after an accepted request that the keyboard really came up, and
+    // the asks it has left if not (see verifyKeyboard).
+    private var keyboardChecksLeft = 0
+    private val keyboardCheck = Runnable { verifyKeyboard() }
     private var transition = DrawerTransition.SLIDE_UP
     // Where the open choreography last drew everything (0 = closed, 1 =
     // open); the pull, the slides and the sheet's own drag all feed it. See
@@ -419,8 +423,8 @@ class DrawerController(
     // stay put above the pages. Built with the controller, before init: taken
     // out of the sheet on first use instead, as it once was, that could land
     // inside the sheet's view-state restore and crash it.
-    // The sort pickers ride in the same header: one over the row, one (with
-    // the hairline) over the list.
+    // The sort picker rides in the same header, with the hairline, over the
+    // list.
     private val sortBars = DrawerSortBars(context, binding.drawerFrequentDivider, viewModel)
 
     private val listHeader: LinearLayout = LinearLayout(context).apply {
@@ -429,10 +433,27 @@ class DrawerController(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
         )
         binding.drawerSheet.removeView(binding.drawerFrequentRow)
-        addView(sortBars.topBar)
         addView(binding.drawerFrequentRow)
         addView(sortBars.listBar)
     }
+
+    // The private space's header at the end of the list while the tab bar
+    // is off (privateSectionActive); the list holds it, as it does the
+    // header above.
+    // Inflated without a parent: the recycler has no layout manager yet to
+    // make its layout params.
+    private val privateSection =
+        com.supernova.launcher.databinding.ViewDrawerPrivateSectionBinding.inflate(
+            android.view.LayoutInflater.from(context)
+        ).apply {
+            root.layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+    // Unlocked from the section: the list goes down to the space's apps
+    // once they arrive.
+    private var revealPrivateSection = false
 
     init {
         binding.drawerSearchField.background = searchPill
@@ -526,6 +547,30 @@ class DrawerController(
         binding.drawerSearch.setOnClickListener {
             if (searchGlobalOnTap) onGlobalSearch()
         }
+        // The field is one text line tall inside the 48dp pill, so a tap on
+        // the pill around it, or on the magnifier, landed on nothing and
+        // brought no keyboard (#169). The whole pill answers like the field.
+        // The pill's buttons take their own taps.
+        binding.drawerSearchField.setOnClickListener {
+            if (searchGlobalOnTap) onGlobalSearch() else showKeyboard()
+        }
+        // A keyboard asked for while the window had no focus (#165) goes up
+        // once focus arrives. Kept on the tree only while the field is in a
+        // window, like every tree listener here.
+        val focusWatch = ViewTreeObserver.OnWindowFocusChangeListener { hasFocus ->
+            if (hasFocus && keyboardFocusDeadline > 0L) {
+                val inTime = SystemClock.uptimeMillis() <= keyboardFocusDeadline
+                keyboardFocusDeadline = 0L
+                if (inTime) {
+                    keyboardTriesLeft = KEYBOARD_TRIES
+                    binding.drawerSearch.post(keyboardRetry)
+                }
+            }
+        }
+        binding.drawerSearch.watchTreeWhileInWindow(
+            add = { addOnWindowFocusChangeListener(focusWatch) },
+            remove = { removeOnWindowFocusChangeListener(focusWatch) },
+        )
         behavior.addBottomSheetCallback(object : BottomSheetBehavior.BottomSheetCallback() {
             override fun onStateChanged(bottomSheet: View, newState: Int) {
                 if (suppressExpandCallback && newState == BottomSheetBehavior.STATE_EXPANDED) {
@@ -614,6 +659,18 @@ class DrawerController(
         binding.drawerPrivateInstall.setOnClickListener {
             startSender(viewModel.appCatalog().privateSpaceInstall())
         }
+        privateSection.privateSectionLock.setOnClickListener {
+            viewModel.privateSpace()?.let { space ->
+                revealPrivateSection = space.locked
+                viewModel.setPrivateSpaceLocked(!space.locked)
+            }
+        }
+        privateSection.privateSectionSettings.setOnClickListener {
+            startSender(viewModel.appCatalog().privateSpaceSettings())
+        }
+        privateSection.privateSectionInstall.setOnClickListener {
+            startSender(viewModel.appCatalog().privateSpaceInstall())
+        }
         binding.drawerWorkTurnOff.setOnClickListener { viewModel.setWorkPaused(true) }
         binding.drawerWorkTurnOn.setOnClickListener { viewModel.setWorkPaused(false) }
         binding.drawerFastScroller.attach(binding.drawerRecycler, binding.drawerFastScrollBubble)
@@ -651,15 +708,9 @@ class DrawerController(
         }
     }
 
-    // Everything an open needs ready before the sheet shows: cards armed,
-    // list current, scroll parked. Shared by open() and the finger pull.
+    // Everything an open needs ready before the sheet shows: list current,
+    // scroll parked. Shared by open() and the finger pull.
     private fun prepareContent(prefs: LauncherPrefs) {
-        // Cards first: the host arms its condition monitor, so the activated
-        // set computed by the refresh below is as fresh as it can be.
-        if (!cardsShown) {
-            cardsShown = true
-            cards?.onShown()
-        }
         dateButton?.text = SearchBarButtons.dateText(context)
         // Usage orders shift with every launch; those changes no longer
         // re-emit state, so refresh the ordering as the drawer opens.
@@ -698,9 +749,7 @@ class DrawerController(
         val wanted = prefs.drawerAutoKeyboard || forSearch
         if (searchFieldVisible && !searchGlobalOnTap && wanted && !isLandscape()) {
             binding.drawerSearch.requestFocus()
-            // Post: the IME request needs the sheet's window focus to have
-            // settled after the expand.
-            binding.drawerSearch.post { showKeyboard() }
+            showKeyboard()
         }
     }
 
@@ -976,23 +1025,11 @@ class DrawerController(
         }
     }
 
-    // The activity is being destroyed with the drawer showing its cards.
-    fun releaseCards() {
-        if (cardsShown) {
-            cardsShown = false
-            cards?.onHidden()
-        }
-    }
-
     // Clears the query once the sheet is off screen, so the next open starts
     // on the full list.
     private fun resetSearch() {
         // The All tab's hidden-apps peek ends with the drawer, as a query does.
         showHiddenApps(false)
-        if (cardsShown) {
-            cardsShown = false
-            cards?.onHidden()
-        }
         // Only the drawer's own keyboard. The window has one IME, and when
         // the drawer closed for global search (its Search button, pull to
         // search) the overlay's field has taken it by now; hiding it for the
@@ -1100,16 +1137,81 @@ class DrawerController(
         if (!wasOpen) parkSheet()
     }
 
+    // The request is not made once and trusted. The keyboard only listens for
+    // the field once the window has focus and the field's input connection
+    // has started, and both land a moment after the focus is asked for; how
+    // long a moment is the phone's business. One post was enough on the
+    // test phones, while on others the request went in too early, was
+    // dropped, and the drawer opened focused with no keyboard until a tap on
+    // the field (#165). So it waits for window focus if there is none, and
+    // retries a few frames apart until the field is the one being served.
     private fun showKeyboard() {
         if (!searchFieldVisible || searchGlobalOnTap) return
         if (!binding.drawerSearch.hasFocus()) binding.drawerSearch.requestFocus()
+        cancelKeyboardRequest()
+        keyboardTriesLeft = KEYBOARD_TRIES
+        binding.drawerSearch.post(keyboardRetry)
+    }
+
+    private fun tryShowKeyboard() {
+        val field = binding.drawerSearch
+        // The drawer closed, or a drag or tap took the focus, meanwhile.
+        if (!isVisible || !field.hasFocus() || keyboardTriesLeft <= 0) return
+        val imm = field.context.getSystemService(InputMethodManager::class.java)
+        if (!field.hasWindowFocus() || imm == null) {
+            keyboardFocusDeadline = SystemClock.uptimeMillis() + KEYBOARD_FOCUS_WAIT_MS
+            return
+        }
+        keyboardTriesLeft--
+        val lastTry = keyboardTriesLeft == 0
         // An explicit request (flags 0), as a tap on the field makes. The
         // implicit kind is one a keyboard may turn down - the platform's do
         // whenever the phone reports a hardware keyboard of any sort - and
         // then the drawer opened focused with no keyboard, a second tap on
-        // the field away from typing (#87).
-        binding.root.context.getSystemService(InputMethodManager::class.java)
-            ?.showSoftInput(binding.drawerSearch, 0)
+        // the field away from typing (#87). The last try asks whatever
+        // isActive says, in case a phone never reports the field as served.
+        val shown = (imm.isActive(field) || lastTry) && imm.showSoftInput(field, 0)
+        if (!shown && !lastTry) {
+            field.postDelayed(keyboardRetry, KEYBOARD_RETRY_MS)
+        } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            keyboardChecksLeft = KEYBOARD_CHECKS
+            field.postDelayed(keyboardCheck, KEYBOARD_CHECK_MS)
+        }
+    }
+
+    // Some keyboards take the request, say yes, and stay down: on an
+    // Infinix (Android 14) the drawer still opened focused with no keyboard
+    // after the retries above, until a tap on the field (#184). So a moment
+    // later the window's own insets are asked whether a keyboard is
+    // actually up, and if not it is asked for again through the window's
+    // insets controller - the path the system bars use, which such keyboards
+    // follow - and through the input method once more. ime() insets report
+    // only from API 30 on, so older phones keep the plain request.
+    private fun verifyKeyboard() {
+        val field = binding.drawerSearch
+        val ime = androidx.core.view.WindowInsetsCompat.Type.ime()
+        val up = androidx.core.view.ViewCompat.getRootWindowInsets(field)?.isVisible(ime) != false
+        if (up || !keyboardStillWanted(field)) return
+        keyboardChecksLeft--
+        val window = (field.context as? android.app.Activity)?.window
+        if (window != null) {
+            androidx.core.view.WindowCompat.getInsetsController(window, field).show(ime)
+        }
+        field.context.getSystemService(InputMethodManager::class.java)?.showSoftInput(field, 0)
+        if (keyboardChecksLeft > 0) field.postDelayed(keyboardCheck, KEYBOARD_CHECK_MS)
+    }
+
+    // The drawer is still open with the field focused in a focused window,
+    // and the check has asks left.
+    private fun keyboardStillWanted(field: View): Boolean =
+        isVisible && field.hasFocus() && field.hasWindowFocus() && keyboardChecksLeft > 0
+
+    private fun cancelKeyboardRequest() {
+        keyboardTriesLeft = 0
+        keyboardFocusDeadline = 0L
+        binding.drawerSearch.removeCallbacks(keyboardRetry)
+        keyboardChecksLeft = 0
+        binding.drawerSearch.removeCallbacks(keyboardCheck)
     }
 
     // Takes the keyboard down from outside - the item menu opens over it
@@ -1119,6 +1221,7 @@ class DrawerController(
     }
 
     private fun hideKeyboard() {
+        cancelKeyboardRequest()
         binding.drawerSearch.clearFocus()
         binding.root.context.getSystemService(InputMethodManager::class.java)
             ?.hideSoftInputFromWindow(binding.drawerSearch.windowToken, 0)
@@ -1203,6 +1306,44 @@ class DrawerController(
         return !(space.locked && space.hiddenWhenLocked)
     }
 
+    // With no other tabs to show (the bar off, or no group or work tabs),
+    // the private space is a section at the end of the list rather than a
+    // tab of its own. The paged style cuts its pages from a flat list with
+    // no room for a header, so it keeps the tab.
+    private fun privateSectionActive(prefs: LauncherPrefs): Boolean {
+        val noOtherTabs = prefs.drawerTabBar == DrawerTabBar.NONE ||
+            (viewModel.drawerTabGroups().isEmpty() && !workTabActive())
+        return noOtherTabs && currentStyle != DrawerStyle.PAGED_GRID && privateTabActive()
+    }
+
+    private fun updatePrivateSection() {
+        val space = viewModel.privateSpace() ?: return
+        privateSection.privateSectionInstall.visibility = if (space.locked) View.GONE else View.VISIBLE
+        privateSection.privateSectionSettings.visibility =
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.BAKLAVA) View.VISIBLE else View.GONE
+        privateSection.privateSectionLock.setText(
+            if (space.locked) R.string.private_space_unlock else R.string.private_space_lock
+        )
+    }
+
+    // After an unlock from the section: its header to the top of the list,
+    // with the apps under it, once they are in the list.
+    private fun revealPrivateSectionIfDue() {
+        if (!revealPrivateSection) return
+        val space = viewModel.privateSpace()
+        val shown = space != null && privateSectionActive(viewModel.state.value.prefs)
+        // Still locked, or the apps not listed yet: wait for the next submit.
+        val waiting = shown && (space?.locked != false || viewModel.privateApps().isEmpty())
+        if (waiting) return
+        revealPrivateSection = false
+        val position = adapter.privateSectionPosition()
+        if (shown && position >= 0) {
+            binding.drawerRecycler.post {
+                (binding.drawerRecycler.layoutManager as? GridLayoutManager)?.scrollToPositionWithOffset(position, 0)
+            }
+        }
+    }
+
     private fun updatePrivateBar() {
         val bar = binding.drawerPrivateBar
         val space = viewModel.privateSpace()
@@ -1250,7 +1391,7 @@ class DrawerController(
             // Show hidden apps: every app but the private space's, hidden
             // ones too.
             val pool = if (hiddenAppsShown) viewModel.appsForPicking() else viewModel.visibleApps()
-            val all = if (workTabActive()) pool.filter { it.userSerial == 0L } else pool
+            val all = if (workTabActive()) pool.filterNot { it.work } else pool
             val isolated = viewModel.isolatedTabKeys() - peekedHiddenKeys()
             if (isolated.isEmpty()) all else all.filterNot { viewModel.hiddenKey(it) in isolated }
         }
@@ -1265,7 +1406,7 @@ class DrawerController(
     // its apps doesn't rebuild the bar: read the members from what is stored,
     // or an app just added leaves All without showing up here.
     private fun storedTab(tab: DrawerGroup): DrawerGroup =
-        viewModel.drawerTabGroups().firstOrNull { it.name == tab.name } ?: tab
+        viewModel.drawerTabGroups().firstOrNull { it.id == tab.id } ?: tab
 
     private fun submit() {
         val prefs = viewModel.state.value.prefs
@@ -1309,7 +1450,14 @@ class DrawerController(
                 binding.root.context.getString(R.string.select_apps)
             ) { onSelectTabApps(storedTab(group)) }
         }
+        val section = tab == null && privateSectionActive(prefs)
+        if (section) updatePrivateSection()
+        adapter.setPrivateSection(
+            if (section) privateSection.root else null,
+            if (section) viewModel.privateApps() else emptyList()
+        )
         adapter.submit(apps, folders, prefs.drawerFoldersFirst, listOrder(prefs))
+        revealPrivateSectionIfDue()
         // The first apps make a tile measurable.
         if (adapter.tileHeightPx == 0) refreshGridRows(prefs)
         updatePrivateBar()
@@ -1336,17 +1484,16 @@ class DrawerController(
     private var lastPaused: Set<Long> = emptySet()
 
     private fun updateFrequentRow() {
-        updateCards()
         val prefs = viewModel.state.value.prefs
         val searching = !binding.drawerSearch.text.isNullOrBlank()
         if (!prefs.drawerFrequentRow || selectedTab != null || searching) {
             setFrequentRowVisible(prefs, false, list = !searching)
             return
         }
-        // The top row: apps in its own order (recently opened by default),
-        // labelled, one per grid column.
+        // The top row: the recently opened apps, labelled, one per grid
+        // column.
         val columns = columnCount(prefs)
-        val apps = viewModel.topRowApps(columns)
+        val apps = viewModel.recentApps(columns)
         if (apps.isEmpty()) {
             setFrequentRowVisible(prefs, false, list = true)
             return
@@ -1392,45 +1539,6 @@ class DrawerController(
             prefs.badgeCornerRadius, prefs.badgeOutline
         ).joinToString("/")
 
-    // Whether the host has been told the drawer is showing cards.
-    private var cardsShown = false
-    private var cardsKey: List<String>? = null
-
-    // Activated cards above the list: All tab only, hidden while a query
-    // filters, rebuilt only when the activated set changes. The sheet's
-    // scroll container is the list itself, so a long card stack is capped by
-    // the frequent-row rule rather than by height.
-    private fun updateCards() {
-        val host = cards
-        val container = binding.drawerCards
-        val activated = if (host == null || !cardsShown || selectedTab != null ||
-            !binding.drawerSearch.text.isNullOrBlank()
-        ) {
-            emptyList()
-        } else {
-            host.activatedCards()
-        }
-        if (activated.isEmpty()) {
-            if (container.childCount > 0) container.removeAllViews()
-            cardsKey = null
-            container.visibility = View.GONE
-            return
-        }
-        val key = activated.map { it.id + ":" + it.hashCode() }
-        if (key != cardsKey || container.childCount == 0) {
-            cardsKey = key
-            container.removeAllViews()
-            activated.forEach { card -> container.addView(host!!.cardView(container, card)) }
-        }
-        container.visibility = View.VISIBLE
-    }
-
-    // Condition signals or card edits changed while open.
-    fun refreshCards() {
-        cardsKey = null
-        updateCards()
-    }
-
     // A launch was recorded while open - most often from the drawer itself,
     // kept open behind the app. The row's key skips a rebind if its apps
     // didn't move.
@@ -1472,9 +1580,11 @@ class DrawerController(
         if (!tab.isSelected) tab.select()
         // The tab holds its group as it was when the bar was built.
         val group = (tag as? DrawerGroup)?.let { held ->
-            viewModel.drawerTabGroups().firstOrNull { it.name == held.name } ?: held
+            viewModel.drawerTabGroups().firstOrNull { it.id == held.id } ?: held
         }
-        onTabMenu(tab.view, group)
+        val menu = onTabMenu(tab.view, group)
+        // Moved while still held, a group tab leaves its menu to be dragged.
+        if (menu != null && group != null) tabReorder.arm(tab.view) { menu.dismiss() }
         return true
     }
 
@@ -1515,13 +1625,6 @@ class DrawerController(
     private fun allTabLabel(): String =
         binding.root.context.getString(R.string.drawer_all) + if (hiddenAppsShown) "*" else ""
 
-    // A tab renamed from its menu: the bar rebuilds once the change is
-    // stored and keeps the tab the user is on by its name, the new one now.
-    fun followTabRename(from: String, to: String) {
-        val tab = selectedTab as? DrawerGroup ?: return
-        if (tab.name == from) selectedTab = tab.copy(name = to)
-    }
-
     // The bar's tabs in order: All, Work, the group tabs (none while the bar
     // is off), Private. Added unselected; see rebuildTabs.
     private fun addTabs(
@@ -1559,15 +1662,19 @@ class DrawerController(
         val tabBarMode = prefs.drawerTabBar
         val groups = viewModel.drawerTabGroups()
         val workTab = workTabActive()
-        val privateTab = privateTabActive()
-        // Private space apps need their own container, so their tab keeps
-        // the bar up even when it is set to None - with All beside it only.
+        // Private space apps need their own container: with no other tabs
+        // they get a section at the end of the list, except in the paged
+        // style, where their tab keeps the bar up with All beside it.
+        val privateTab = privateTabActive() && !privateSectionActive(prefs)
         val tabsOff = tabBarMode == DrawerTabBar.NONE
         val hideAll = prefs.drawerHideAllTab && groups.isNotEmpty() && !tabsOff
-        val key = "${tabBarMode.name}|${groups.joinToString { "${it.name}:${it.order}:${iconKey(it)}" }}|" +
+        val key = "${tabBarMode.name}|${groups.joinToString { "${it.id}:${it.name}:${it.order}:${iconKey(it)}" }}|" +
             "$workTab|$privateTab|$hideAll|${prefs.drawerDefaultTab}|${prefs.drawerTabContent.name}"
         if (key == renderedTabsKey) return
         renderedTabsKey = key
+        // A dragged tab and the ones it moved stay offset until here, where
+        // the bar comes back in the order they show.
+        tabReorder.reset()
         // Read before the tabs go: selecting one below overwrites it.
         val previous = selectedTab
         // A newly picked default tab shows straight away; any other rebuild
@@ -1603,20 +1710,23 @@ class DrawerController(
         for (i in 0 until tabs.tabCount) {
             val tab = tabs.getTabAt(i) ?: continue
             tab.view.setOnLongClickListener { openTabMenu(tab) }
+            tabReorder.watch(tab.view)
         }
 
         // The tab the user was on, else the default tab pref, else the first.
         fun indexOf(match: (Any?) -> Boolean): Int? =
             (0 until tabs.tabCount).firstOrNull { match(tabs.getTabAt(it)?.tag) }
         val kept = if (defaultChanged) null else when (previous) {
-            is DrawerGroup -> indexOf { it is DrawerGroup && it.name == previous.name }
+            is DrawerGroup -> indexOf { it is DrawerGroup && it.id == previous.id }
             WorkTab -> indexOf { it === WorkTab }
             PrivateTab -> indexOf { it === PrivateTab }
             else -> indexOf { it == null }
         }
-        val defaultName = prefs.drawerDefaultTab.takeIf { it.isNotEmpty() }
+        // The default tab is stored by the group's id (its name, for one
+        // from before ids).
+        val defaultId = prefs.drawerDefaultTab.takeIf { it.isNotEmpty() }
         val target = kept
-            ?: defaultName?.let { name -> indexOf { it is DrawerGroup && it.name == name } }
+            ?: defaultId?.let { id -> indexOf { it is DrawerGroup && it.id == id } }
             ?: 0
         tabs.getTabAt(target)?.select()
         selectedTab = tabs.getTabAt(target)?.tag
@@ -1717,11 +1827,17 @@ class DrawerController(
         // The magnifier on the left is fixed, in the drawer's text colour.
         binding.drawerSearchIcon.visibility = View.VISIBLE
         binding.drawerSearchIcon.setImageResource(R.drawable.ic_search)
-        binding.drawerSearchIcon.imageTintList = android.content.res.ColorStateList.valueOf(resolvedField.text)
+        binding.drawerSearchIcon.imageTintList =
+            android.content.res.ColorStateList.valueOf(SearchBarButtons.iconTint(resolvedField.text))
         // The field isn't on a Material card, so its text follows its own style.
         binding.drawerSearch.setTextColor(resolvedField.text)
         binding.drawerSearchGhost.setTextColor((0x80 shl 24) or (resolvedField.text and 0xFFFFFF))
         binding.drawerSearchGhost.typeface = binding.drawerSearch.typeface
+        // The empty field's text can be turned off, as the home bar's; the
+        // field keeps its name for TalkBack either way.
+        binding.drawerSearch.hint = if (searchConfig.hint) context.getString(R.string.drawer_search_hint) else null
+        binding.drawerSearch.contentDescription =
+            if (searchConfig.hint) null else context.getString(R.string.drawer_search_hint)
         binding.drawerSearch.setHintTextColor((0x8A shl 24) or (resolvedField.text and 0xFFFFFF))
         binding.drawerSearch.highlightColor =
             (0x40 shl 24) or (resolvedField.accent and 0xFFFFFF)
@@ -1744,6 +1860,10 @@ class DrawerController(
         binding.drawerWorkPausedTitle.setTextColor(resolvedForBar.text)
         binding.drawerWorkPausedBody.setTextColor(withAlpha(resolvedForBar.text, TAB_TEXT_ALPHA))
         binding.drawerWorkTurnOff.setTextColor(resolvedForBar.text)
+        privateSection.privateSectionTitle.setTextColor(resolvedForBar.text)
+        privateSection.privateSectionInstall.setTextColor(resolvedForBar.text)
+        privateSection.privateSectionSettings.setTextColor(resolvedForBar.text)
+        privateSection.privateSectionLock.setTextColor(resolvedForBar.text)
         if (prefs.drawerTabStyle == DrawerTabStyle.BUBBLE) {
             val pill = GradientDrawable().apply {
                 cornerRadius = TAB_BUBBLE_RADIUS_DP * density
@@ -1753,12 +1873,14 @@ class DrawerController(
             tabs.setSelectedTabIndicator(android.graphics.drawable.InsetDrawable(pill, 0, inset, 0, inset))
             tabs.setSelectedTabIndicatorGravity(TabLayout.INDICATOR_GRAVITY_STRETCH)
             tabs.isTabIndicatorFullWidth = true
-            tabs.setSelectedTabIndicatorColor(withAlpha(resolvedForBar.accent, TAB_BUBBLE_ALPHA))
+            tabIndicatorColor = withAlpha(resolvedForBar.accent, TAB_BUBBLE_ALPHA)
+            tabs.setSelectedTabIndicatorColor(tabIndicatorColor)
         } else {
             tabs.setSelectedTabIndicator(R.drawable.tab_indicator_drawer)
             tabs.setSelectedTabIndicatorGravity(TabLayout.INDICATOR_GRAVITY_BOTTOM)
             tabs.isTabIndicatorFullWidth = false
-            tabs.setSelectedTabIndicatorColor(resolvedForBar.accent)
+            tabIndicatorColor = resolvedForBar.accent
+            tabs.setSelectedTabIndicatorColor(tabIndicatorColor)
         }
 
         // Header action buttons (C10): inside the field, at its right end,
@@ -1879,8 +2001,6 @@ class DrawerController(
             prefs.drawerStyle != DrawerStyle.PAGED_GRID &&
             binding.drawerWorkPaused.visibility != View.VISIBLE
         binding.drawerFastScroller.visibility = if (show) View.VISIBLE else View.GONE
-        // Its track stands in for the list's own scrollbar.
-        binding.drawerRecycler.isVerticalScrollBarEnabled = !show
         if (show) binding.drawerFastScroller.updateThumb()
     }
 
@@ -2077,6 +2197,7 @@ class DrawerController(
         val recycler = binding.drawerRecycler
         val rows = prefs.drawerRows
         val height = recycler.height - recycler.paddingTop - recycler.paddingBottom
+        if (height > 0) IconFitRoom.drawerHeightPx = height
         val measured = if (rows > 0 && height > 0) adapter.measureTile(recycler) else null
         val content = measured?.get(0) ?: 0
         val compact = measured?.get(1) ?: 0
@@ -2107,6 +2228,16 @@ class DrawerController(
     private val context: Context get() = binding.root.context
 
     private companion object {
+        // showKeyboard's retries: up to ten, 50ms apart (half a second in
+        // all), and how long it waits for a window without focus to get it.
+        const val KEYBOARD_TRIES = 10
+        const val KEYBOARD_RETRY_MS = 50L
+        const val KEYBOARD_FOCUS_WAIT_MS = 1500L
+        // verifyKeyboard: how long after an accepted request the insets are
+        // read (past the keyboard's first animation frame), and how many
+        // more asks a keyboard that stayed down gets.
+        const val KEYBOARD_CHECK_MS = 400L
+        const val KEYBOARD_CHECKS = 2
         // Launcher3's MAX_TRACK_ALPHA.
         const val FAST_SCROLL_TRACK_ALPHA = 30
         // Narrowest a drawer cell is allowed to get when the column count is

@@ -126,29 +126,7 @@ class LauncherRepository(private val context: Context) {
     // checked and placed under the lock: every open screen's view model
     // hears the same install, and only the first to get here adds it.
     suspend fun autoAddApp(app: LaunchableApp, cols: Int, rows: Int) {
-        mutateFitted(cols, rows) { current ->
-            val placed = current.items.any {
-                it.itemType == ItemType.APP && it.packageName == app.packageName && it.userSerial == app.userSerial
-            }
-            if (placed) return@mutateFitted current
-            for (page in 0 until current.pageCount) {
-                val cell = WorkspaceGeometry.findFreeCell(current, page, 1, 1, cols, rows) ?: continue
-                val item = LauncherItem(
-                    id = id(),
-                    itemType = ItemType.APP,
-                    container = ContainerType.WORKSPACE,
-                    page = page,
-                    cellX = cell.first,
-                    cellY = cell.second,
-                    label = app.label,
-                    packageName = app.packageName,
-                    className = app.className,
-                    userSerial = app.userSerial
-                )
-                return@mutateFitted current.copy(items = current.items + item)
-            }
-            current
-        }
+        mutateFitted(cols, rows) { current -> AutoAdd.place(current, app, id(), cols, rows) }
     }
 
     suspend fun addShortcutToWorkspace(
@@ -187,10 +165,10 @@ class LauncherRepository(private val context: Context) {
     }
 
     // A drawer folder placed on the home screen: a new folder with the
-    // group's name, holding its apps in the order given. The copy is the
-    // home screen's own; the drawer group stays as it is.
+    // group's name and icon, holding its apps in the order given. The copy
+    // is the home screen's own; the drawer group stays as it is.
     suspend fun addFolderToWorkspace(
-        label: String,
+        group: DrawerGroup,
         apps: List<LaunchableApp>,
         page: Int,
         cellX: Int,
@@ -202,16 +180,18 @@ class LauncherRepository(private val context: Context) {
         displace: List<WorkspaceGeometry.ReorderMove> = emptyList()
     ) {
         if (apps.isEmpty()) return
-        val folder = LauncherItem(
-            id = id(),
-            itemType = ItemType.FOLDER,
-            container = ContainerType.WORKSPACE,
-            page = page,
-            cellX = cellX,
-            cellY = cellY,
-            workspaceX = workspaceX,
-            workspaceY = workspaceY,
-            label = label
+        val folder = group.withIconOn(
+            LauncherItem(
+                id = id(),
+                itemType = ItemType.FOLDER,
+                container = ContainerType.WORKSPACE,
+                page = page,
+                cellX = cellX,
+                cellY = cellY,
+                workspaceX = workspaceX,
+                workspaceY = workspaceY,
+                label = group.name
+            )
         )
         val members = folderMembers(folder.id, apps)
         mutateFitted(cols, rows) { withNewFolder(it, folder, members, displace, cols, rows) }
@@ -316,7 +296,7 @@ class LauncherRepository(private val context: Context) {
     }
 
     suspend fun addFolderToDock(
-        label: String,
+        group: DrawerGroup,
         apps: List<LaunchableApp>,
         rank: Int,
         cols: Int,
@@ -325,7 +305,11 @@ class LauncherRepository(private val context: Context) {
         dockCount: Int = 0
     ) {
         if (apps.isEmpty()) return
-        val folder = LauncherItem(id = id(), itemType = ItemType.FOLDER, container = ContainerType.DOCK, rank = rank, label = label)
+        val folder = group.withIconOn(
+            LauncherItem(
+                id = id(), itemType = ItemType.FOLDER, container = ContainerType.DOCK, rank = rank, label = group.name
+            )
+        )
         addNewItemToDock(folder, folderMembers(folder.id, apps), rank, cols, rows, preferredPage, dockCount)
     }
 
@@ -761,15 +745,13 @@ class LauncherRepository(private val context: Context) {
         mutate { current -> current.copy(appOverrides = current.appOverrides - key) }
     }
 
-    // Items snapshot their label at add time; a cleared rename restores the
-    // catalog's label on every pinned copy.
-    suspend fun relabelItems(packageName: String, className: String, userSerial: Long, label: String) {
+    // One placed app's own Edit (AppItemEdits): `label` is the app's own
+    // name, what the copy shows with no name of its own; null edit = none.
+    suspend fun setItemAppEdit(itemId: String, label: String, edit: AppOverride?) {
         mutate { current ->
             current.copy(items = current.items.map { item ->
-                if (item.packageName == packageName && item.className == className &&
-                    item.userSerial == userSerial && item.itemType == ItemType.APP
-                ) {
-                    item.copy(label = label)
+                if (item.id == itemId && item.itemType == ItemType.APP) {
+                    item.copy(label = label, appEdit = edit)
                 } else {
                     item
                 }
@@ -807,8 +789,8 @@ class LauncherRepository(private val context: Context) {
         }
     }
 
-    suspend fun resetCustomIcons() {
-        mutate { CustomIcons.reset(it) }
+    suspend fun resetCustomIcons(kinds: Set<CustomIcons.Kind>) {
+        mutate { CustomIcons.reset(it, kinds) }
     }
 
     suspend fun resetHiddenLabels() {
@@ -875,9 +857,16 @@ class LauncherRepository(private val context: Context) {
         }
     }
 
+    // A widget bound to a card. Add card's Widget saves nothing until the
+    // widget is bound, so a card that doesn't exist yet is made here, at the
+    // end of the feed (a cancelled pick leaves no empty card behind), and
+    // made as a new widget card is: without its background.
     suspend fun setCardWidget(cardId: String, appWidgetId: Int, provider: String) {
         mutate { current ->
-            current.copy(feedCards = current.feedCards.map { card ->
+            val known = current.feedCards.any { it.id == cardId }
+            val cards = current.feedCards.takeIf { known }
+                ?: (current.feedCards + com.supernova.launcher.feed.FeedCard.newWidgetCard(cardId))
+            current.copy(feedCards = cards.map { card ->
                 if (card.id == cardId) {
                     card.copy(
                         featuredType = com.supernova.launcher.feed.FeaturedType.WIDGET.name,
@@ -1236,7 +1225,7 @@ class LauncherRepository(private val context: Context) {
             // Never over a layout this build couldn't read: an edit to the
             // empty stand-in would replace it for good.
             val current = decode(context.supernovaStore.data.first()[StoreKeys.model]) ?: return
-            val next = LargeIcons.withSmallIconsOffDesktop(block(current))
+            val next = AppItemEdits.stampNew(current, LargeIcons.withSmallIconsOffDesktop(block(current)))
             if (next == current) return
             context.supernovaStore.edit { prefs ->
                 prefs[StoreKeys.model] = json.encodeToString(next)

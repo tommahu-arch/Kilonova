@@ -1,8 +1,8 @@
 # Kilonova
 
 A personal fork of Supernova Launcher, tuned for my Samsung One UI devices (for example, Samsung Finder
-integration) and for other personal requirements. It needs no network permission and works fully
-offline.
+integration) and for other personal requirements. Its network use is limited to the optional store-category lookup for Drawer groups (F-Droid's public index and
+Play Store pages, package names only); everything else works fully offline.
 
 ## Credit
 

@@ -34,7 +34,7 @@ class GroupListBuilder(private val context: Context, private val viewModel: Laun
             if (tabs.isNotEmpty()) add(preview(tabs, apps))
             add(storeRow())
             add(GroupListRow.Header(R.string.group_tabs_header))
-            tabs.forEach { add(row(it, apps, TabFolders.inTab(it, folders).size, it.name == defaultTab)) }
+            tabs.forEach { add(row(it, apps, TabFolders.inTab(it, folders).size, it.id == defaultTab)) }
             add(GroupListRow.Add(DrawerGroupType.TAB))
             if (tabs.size > 1) add(GroupListRow.Caption(R.string.group_tab_hint))
             add(GroupListRow.Header(R.string.group_folders_header))
@@ -101,16 +101,17 @@ class GroupListBuilder(private val context: Context, private val viewModel: Laun
             if (!prefs.drawerHideAllTab) add(context.getString(R.string.drawer_all))
             if (work) add(context.getString(R.string.drawer_work))
         }
-        val opensOn = tabs.firstOrNull { it.name == prefs.drawerDefaultTab }
+        val opensOn = tabs.firstOrNull { it.id == prefs.drawerDefaultTab }
             ?: tabs.first().takeIf { builtIn.isEmpty() }
         val shown = when {
             opensOn != null -> apps.filter { viewModel.hiddenKey(it) in opensOn.members }
-            prefs.drawerHideAllTab -> apps.filter { it.userSerial != 0L }
+            prefs.drawerHideAllTab -> apps.filter { it.work }
             else -> mainList(apps, work)
         }
         return GroupListRow.Preview(
             builtIn = builtIn,
             tabs = tabs.map { it.name },
+            tabIds = tabs.map { it.id },
             defaultTab = prefs.drawerDefaultTab,
             apps = shown.take(PREVIEW_APPS),
             barHidden = prefs.drawerTabBar == DrawerTabBar.NONE
@@ -121,7 +122,7 @@ class GroupListBuilder(private val context: Context, private val viewModel: Laun
     // work apps while they have a tab of their own.
     private fun mainList(apps: List<LaunchableApp>, work: Boolean): List<LaunchableApp> {
         val isolated = viewModel.isolatedTabKeys()
-        return apps.filter { viewModel.hiddenKey(it) !in isolated && !(work && it.userSerial != 0L) }
+        return apps.filter { viewModel.hiddenKey(it) !in isolated && !(work && it.work) }
     }
 
     private companion object {

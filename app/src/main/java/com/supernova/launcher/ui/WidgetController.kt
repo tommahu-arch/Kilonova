@@ -126,8 +126,24 @@ class WidgetController(
             null
         } else {
             cardWidgetViews[appWidgetId]
-                ?: createWidgetHostView(appWidgetId, info)?.also { cardWidgetViews[appWidgetId] = it }
+                ?: createWidgetHostView(appWidgetId, info)?.also { hostView ->
+                    cardWidgetViews[appWidgetId] = hostView
+                    // The card sets the height (its stepper, or the whole
+                    // feed page): the provider is told each new size, so it
+                    // lays out for it rather than for its default cells.
+                    hostView.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+                        reportCardWidgetSize(appWidgetId, view as AppWidgetHostView)
+                    }
+                }
         }
+    }
+
+    private fun reportCardWidgetSize(widgetId: Int, hostView: AppWidgetHostView) {
+        if (hostView.width <= 0 || hostView.height <= 0) return
+        val size = SizeF(hostView.width.toFloat(), hostView.height.toFloat())
+        if (lastReportedSizes[widgetId] == size) return
+        lastReportedSizes[widgetId] = size
+        WidgetSizing.reportSize(hostView, hostView.width, hostView.height, activity.resources.displayMetrics.density)
     }
 
     // A pending widget is bound for one of these destinations: a workspace
@@ -817,7 +833,7 @@ class WidgetController(
         // result arrives in onActivityResult (the host API predates contracts).
         val tokenLaunch = runCatching {
             appWidgetHost.startAppWidgetConfigureActivityForResult(
-                activity, pending.widgetId, 0, REQUEST_CONFIGURE_WIDGET, null
+                activity, pending.widgetId, 0, REQUEST_CONFIGURE_WIDGET, PendingStarts.options()
             )
         }
         if (tokenLaunch.isSuccess) {
@@ -866,7 +882,7 @@ class WidgetController(
         val widgetId = item.appWidgetId ?: return
         val opened = runCatching {
             appWidgetHost.startAppWidgetConfigureActivityForResult(
-                activity, widgetId, 0, REQUEST_RECONFIGURE_WIDGET, null
+                activity, widgetId, 0, REQUEST_RECONFIGURE_WIDGET, PendingStarts.options()
             )
         }.isSuccess
         if (!opened) Toast.makeText(activity, R.string.widget_configure_failed, Toast.LENGTH_SHORT).show()

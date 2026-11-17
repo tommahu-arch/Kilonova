@@ -38,7 +38,7 @@ class AppDrawerAdapter(
         val icon: Drawable,
         val members: List<LaunchableApp>
     ) {
-        val key: String = "folder/${group.name}"
+        val key: String = "folder/${group.id}"
         val lowerLabel: String = group.name.lowercase()
         val section: String by lazy { LabelSections.of(group.name) }
     }
@@ -55,15 +55,18 @@ class AppDrawerAdapter(
 
     private val stableIds = mutableMapOf<String, Long>()
 
-    override fun getItemId(position: Int): Long {
-        if (showWebRow()) return WEB_ROW_ID - position
-        return stableIds.getOrPut(keyAt(position)) { stableIds.size.toLong() }
+    override fun getItemId(position: Int): Long = when {
+        showWebRow() -> WEB_ROW_ID - position
+        // An empty tab's one row stands in for the empty list.
+        showEmpty() -> EMPTY_ROW_ID
+        else -> stableIds.getOrPut(keyAt(position)) { stableIds.size.toLong() }
     }
 
     private fun keyAt(position: Int): String = when (val item = displayItems[position]) {
         is Entry -> item.key
         is FolderEntry -> item.key
         HeaderItem -> HEADER_KEY
+        PrivateHeaderItem -> PRIVATE_HEADER_KEY
         else -> position.toString()
     }
 
@@ -79,6 +82,24 @@ class AppDrawerAdapter(
         headerView = view
         applyFilter()
     }
+
+    // The private space's section at the end of the list, while the drawer
+    // has no tabs to give it one of its own: a full-width header the drawer
+    // owns (its lock and buttons), then the space's apps, which the list's
+    // name order and fast scroller leave out. Taken in on the next submit.
+    private object PrivateHeaderItem
+
+    private var privateHeader: View? = null
+    private val privateEntries = mutableListOf<Entry>()
+
+    fun setPrivateSection(header: View?, apps: List<LaunchableApp>) {
+        privateHeader = header
+        privateEntries.clear()
+        if (header != null) apps.mapTo(privateEntries, ::Entry)
+    }
+
+    // Where the section's header sits in the list; -1 without one.
+    fun privateSectionPosition(): Int = displayItems.indexOf(PrivateHeaderItem)
 
     private val allEntries = mutableListOf<Entry>()
     private val folderEntries = mutableListOf<FolderEntry>()
@@ -259,7 +280,6 @@ class AppDrawerAdapter(
 
     private fun applyFilter() {
         val oldItems = displayItems.toList()
-        val oldWebRow = showWebRow()
         displayItems.clear()
         if (query.isBlank()) {
             when {
@@ -284,9 +304,15 @@ class AppDrawerAdapter(
         if (query.isBlank() && headerView != null && displayItems.isNotEmpty()) {
             displayItems.add(0, HeaderItem)
         }
-        // Diff so a keystroke rebinds only the rows that changed. The web-row
-        // sentinel changes the list shape; fall back to a full refresh there.
-        if (oldWebRow || showWebRow()) {
+        if (query.isBlank() && privateHeader != null) {
+            displayItems.add(PrivateHeaderItem)
+            displayItems.addAll(privateEntries)
+        }
+        // Diff so a keystroke rebinds only the rows that changed. An empty
+        // list shows rows of its own instead (the web rows, or an empty tab's
+        // message), which the diff doesn't see; fall back to a full refresh
+        // there, which also rebinds an empty tab's action for the new tab.
+        if (oldItems.isEmpty() || displayItems.isEmpty()) {
             notifyDataSetChanged()
             return
         }
@@ -314,6 +340,7 @@ class AppDrawerAdapter(
         is Entry -> item.key
         is FolderEntry -> item.key
         HeaderItem -> HEADER_KEY
+        PrivateHeaderItem -> PRIVATE_HEADER_KEY
         else -> ""
     }
 
@@ -326,7 +353,9 @@ class AppDrawerAdapter(
     // None for a list not sorted by name.
     internal fun fastScrollSections(): List<FastScrollMath.Section> {
         if (order == Order.UNSORTED) return emptyList()
+        val privateStart = privateSectionPosition().takeIf { it >= 0 } ?: displayItems.size
         val initials = displayItems.withIndex()
+            .filter { (index, _) -> index < privateStart }
             .filter { (_, item) -> item is Entry || (item is FolderEntry && !foldersFirst) }
             .map { (index, item) -> index to sectionOf(item) }
         return FastScrollMath.sections(initials)
@@ -380,12 +409,16 @@ class AppDrawerAdapter(
     // Both empty-state rows run the width of the grid; everything else is one
     // cell. The layout manager asks through this.
     fun spanSizeAt(position: Int, spanCount: Int): Int =
-        if (showWebRow() || showEmpty() || displayItems.getOrNull(position) === HeaderItem) spanCount else 1
+        if (showWebRow() || showEmpty() || isHeaderAt(position)) spanCount else 1
+
+    private fun isHeaderAt(position: Int): Boolean =
+        displayItems.getOrNull(position).let { it === HeaderItem || it === PrivateHeaderItem }
 
     override fun getItemViewType(position: Int): Int = when {
         showWebRow() -> footerTypes()[position]
         showEmpty() -> TYPE_EMPTY
         displayItems[position] === HeaderItem -> TYPE_LIST_HEADER
+        displayItems[position] === PrivateHeaderItem -> TYPE_PRIVATE_HEADER
         displayItems[position] is FolderEntry ->
             if (displayMode == DisplayMode.ROW) TYPE_FOLDER_ROW else TYPE_FOLDER_TILE
         displayMode == DisplayMode.ROW -> TYPE_ROW
@@ -415,7 +448,7 @@ class AppDrawerAdapter(
             TYPE_WEB_ROW -> WebRowHolder(
                 com.supernova.launcher.databinding.ItemSearchRowBinding.inflate(inflater, parent, false)
             )
-            TYPE_LIST_HEADER -> ListHeaderHolder(
+            TYPE_LIST_HEADER, TYPE_PRIVATE_HEADER -> ListHeaderHolder(
                 android.widget.FrameLayout(parent.context).apply {
                     layoutParams = RecyclerView.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -438,7 +471,9 @@ class AppDrawerAdapter(
             is MarksHolder -> holder.bind()
             is WebRowHolder -> holder.bind()
             is HeaderHolder -> Unit
-            is ListHeaderHolder -> holder.bind(headerView)
+            is ListHeaderHolder -> holder.bind(
+                if (displayItems[position] === PrivateHeaderItem) privateHeader else headerView
+            )
             is EmptyHolder -> emptyState?.let(holder::bind)
         }
     }
@@ -671,15 +706,18 @@ class AppDrawerAdapter(
         private const val TYPE_LIST_HEADER = 6
         private const val TYPE_EMPTY = 7
         private const val TYPE_WEB_ROW = 8
+        private const val TYPE_PRIVATE_HEADER = 9
         private const val EMPTY_PAD_DP = 32
         private const val EMPTY_BUTTON_SP = 16f
         private const val EMPTY_BUTTON_MIN_DP = 48
         private const val EMPTY_BUTTON_PAD_DP = 16
         private const val HEADER_KEY = "list-header"
+        private const val PRIVATE_HEADER_KEY = "private-header"
         // Rows of spare tiles a grid keeps, and RecyclerView's own count.
         private const val POOL_ROWS = 3
         private const val DEFAULT_POOL = 5
         private const val WEB_ROW_ID = -2L
+        private const val EMPTY_ROW_ID = -1L
 
         // Folders merged in among the apps by name, in the list's direction
         // and the apps' own alphabet (LabelOrder). The folders come in the
