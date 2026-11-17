@@ -4,7 +4,8 @@ import android.content.Context
 import android.text.InputType
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
+import android.view.LayoutInflater
+import android.widget.BaseAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
@@ -50,11 +51,13 @@ object StoreMetadataSheet {
 
         var shown = rows
         val list = ListView(context)
-        val adapter = object : ArrayAdapter<Row>(context, android.R.layout.simple_list_item_2) {
+        val adapter = object : BaseAdapter() {
             override fun getCount() = shown.size
             override fun getItem(position: Int) = shown[position]
+            override fun getItemId(position: Int) = position.toLong()
             override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-                val view = super.getView(position, convertView, parent)
+                val view = convertView
+                    ?: LayoutInflater.from(context).inflate(android.R.layout.simple_list_item_2, parent, false)
                 val row = shown[position]
                 view.findViewById<TextView>(android.R.id.text1).apply {
                     text = row.title
