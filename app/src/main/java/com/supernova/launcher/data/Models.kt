@@ -674,6 +674,15 @@ data class DrawerGroup(
 
         private const val ID_LENGTH = 12
 
+        // What version 0.0.6 wrote in the id's field: the store categories
+        // (null when the field holds an id, or nothing).
+        fun legacyStoreField(parts: List<String>): String? =
+            parts.getOrNull(ID_FIELD)?.takeIf { field ->
+                StoreCategories.keyPrefixes.any { field.startsWith(it) }
+            }
+
+        fun legacyStoreField(raw: String): String? = legacyStoreField(raw.split('|'))
+
         fun decode(raw: String): DrawerGroup? {
             val parts = raw.split('|')
             val name = parts.getOrNull(0)?.takeIf { it.isNotBlank() } ?: return null
@@ -689,14 +698,16 @@ data class DrawerGroup(
                 MOVE_MARKER -> false
                 else -> null
             }
+            // Version 0.0.6 kept the store categories in the id's field.
+            val legacy = legacyStoreField(parts)
             return DrawerGroup(
                 name, members, order, type, smart, keepInMain,
                 iconPack = parts.getOrNull(ICON_PACK_FIELD)?.ifEmpty { null },
                 iconName = parts.getOrNull(ICON_NAME_FIELD)?.ifEmpty { null },
                 iconBase64 = parts.getOrNull(ICON_PHOTO_FIELD)?.ifEmpty { null },
                 iconRaw = parts.getOrNull(ICON_RAW_FIELD) == RAW_MARKER,
-                id = parts.getOrNull(ID_FIELD)?.takeIf { it.isNotBlank() } ?: name,
-                storeCats = parts.getOrNull(STORE_FIELD).orEmpty().split(',')
+                id = if (legacy != null) name else parts.getOrNull(ID_FIELD)?.takeIf { it.isNotBlank() } ?: name,
+                storeCats = (legacy.orEmpty() + "," + parts.getOrNull(STORE_FIELD).orEmpty()).split(',')
                     .filter { it.isNotBlank() }.map { StoreCategories.unescape(it) }.toSet()
             )
         }

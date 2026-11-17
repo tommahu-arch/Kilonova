@@ -158,3 +158,29 @@ class StoreSortingIdTest {
         assertEquals("#x", DrawerGroup.decode("N|0/a/Main|1|TAB|||||||#x")!!.id)
     }
 }
+
+class StoreRepairTest {
+    // What 0.0.6 wrote: the categories in field 10.
+    private fun v006(name: String, vararg keys: String) =
+        "$name|0/a/Main|1|FOLDER|||||||" + keys.joinToString(",")
+
+    @Test
+    fun version006EntriesKeepTheirCategories() {
+        val group = DrawerGroup.decode(v006("Auth", "fdroid:Password & 2FA", "play:TOOLS"))!!
+        assertEquals("Auth", group.id)
+        assertEquals(setOf("fdroid:Password & 2FA", "play:TOOLS"), group.storeCats)
+    }
+
+    @Test
+    fun repairGivesTheKeyBackToItsFormerGroupAndIsRepeatable() {
+        // After the update emptied the groups, Add Play Store groups put the key in Tools.
+        val tools = DrawerGroup("Tools", emptySet(), storeCats = setOf("fdroid:Password & 2FA", "play:TOOLS"))
+            .encode()
+        val raw = setOf(v006("Auth", "fdroid:Password & 2FA"), tools)
+        val fixed = StoreRepair.repair(raw, "")!!
+        val groups = fixed.entries.mapNotNull { DrawerGroup.decode(it) }.associateBy { it.name }
+        assertEquals(setOf("fdroid:Password & 2FA"), groups["Auth"]!!.storeCats)
+        assertEquals(setOf("play:TOOLS"), groups["Tools"]!!.storeCats)
+        assertEquals(null, StoreRepair.repair(fixed.entries, ""))
+    }
+}

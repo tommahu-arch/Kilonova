@@ -11,6 +11,7 @@ object StoreCategories {
     const val PLAY = "play:"
     const val FDROID = "fdroid:"
     const val SPECIAL = "special:"
+    val keyPrefixes = listOf(PLAY, FDROID, SPECIAL)
 
     // com.samsung.* apps no store category placed, and apps nothing placed.
     const val SAMSUNG = SPECIAL + "samsung"

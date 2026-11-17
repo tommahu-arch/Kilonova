@@ -306,6 +306,7 @@ class LauncherViewModel(
         // Smart folders are on by default, so the category folders are made
         // automatically; the toggle and the install hook regenerate them, so
         // this first pass only covers a store that has none yet.
+        viewModelScope.launch { preferences.repairLegacyStoreGroups() }
         // Store categories: look up what the groups sort by once the apps are
         // known, and again when the number of installed apps changes (after
         // the burst of package callbacks settles).
