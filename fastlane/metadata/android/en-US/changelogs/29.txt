@@ -1,0 +1,5 @@
+Apps metadata, Add group button, handle on the left.
+
+- Drawer groups > Sort by store category > View apps metadata: every app with its Play and F-Droid categories and its group, with search
+- Drawer: an Add group button (tab or folder) at the bottom; App drawer > Add group button turns it off
+- Drawer groups: the drag handle is on the left
