@@ -1,6 +1,10 @@
 package com.supernova.launcher.ui
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
+import com.supernova.launcher.data.Pref
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -31,17 +35,50 @@ class BackupTransfer(
     // After a backup has been restored, with the activity still alive.
     private val onImported: () -> Unit = {}
 ) {
-    private val exportLauncher =
-        activity.registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-            if (uri != null) export(uri)
-        }
+    // The Backup location folder, as a place for a file picker to open in.
+    private fun folderHint(): Uri? = runCatching {
+        val tree = Uri.parse(viewModel().state.value.prefs.backupFolder.ifEmpty { return@runCatching null })
+        DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+    }.getOrNull()
 
-    private val importLauncher =
-        activity.registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) import(uri)
-        }
+    private fun Intent.openingIn(hint: Uri?): Intent =
+        apply { hint?.let { putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) } }
 
-    fun pickExportFile() = exportLauncher.launch("supernova-backup-${System.currentTimeMillis()}.json")
+    private val exportLauncher = activity.registerForActivityResult(
+        object : ActivityResultContracts.CreateDocument("application/json") {
+            override fun createIntent(context: Context, input: String) =
+                super.createIntent(context, input).openingIn(folderHint())
+        }
+    ) { uri -> if (uri != null) export(uri) }
+
+    private val importLauncher = activity.registerForActivityResult(
+        object : ActivityResultContracts.OpenDocument() {
+            override fun createIntent(context: Context, input: Array<String>) =
+                super.createIntent(context, input).openingIn(folderHint())
+        }
+    ) { uri -> if (uri != null) import(uri) }
+
+    // Backup location: the system picker, which can make a new folder. The
+    // pick is kept across restarts so the export and import pickers open there.
+    private val folderLauncher = activity.registerForActivityResult(
+        object : ActivityResultContracts.OpenDocumentTree() {
+            override fun createIntent(context: Context, input: Uri?) =
+                super.createIntent(context, input).openingIn(folderHint())
+        }
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                activity.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            }
+            viewModel().set(Pref.backupFolder, uri.toString())
+        }
+    }
+
+    fun pickFolder() = folderLauncher.launch(null)
+
+    fun pickExportFile() = exportLauncher.launch("kilonova-backup-${System.currentTimeMillis()}.json")
 
     // Any file: another launcher's backup has an extension of its own, which
     // the picker knows no type for.

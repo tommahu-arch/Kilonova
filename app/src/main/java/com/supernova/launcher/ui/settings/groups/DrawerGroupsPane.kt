@@ -82,6 +82,9 @@ class DrawerGroupsPane(
     init {
         binding.groupsList.layoutManager = LinearLayoutManager(activity)
         binding.groupsList.adapter = adapter
+        // The store card's counter changes often; a fade on each change flickers.
+        (binding.groupsList.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)
+            ?.supportsChangeAnimations = false
         binding.groupsList.addItemDecoration(cards)
         touchHelper.attachToRecyclerView(binding.groupsList)
         // The store card's line follows the lookup as it runs.

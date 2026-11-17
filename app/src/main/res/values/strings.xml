@@ -60,6 +60,8 @@
     <string name="widget_configure_failed">Couldn\'t open widget settings</string>
     <string name="widget_provider_missing">Widget is no longer available</string>
     <string name="widget_finish_setup">%1$s\nTap to finish setup</string>
+    <string name="backup_location">Backup location</string>
+    <string name="backup_location_none">Not set. Pick a folder, or make a new one there.</string>
     <string name="export_backup">Export backup</string>
     <string name="import_backup">Import backup</string>
     <string name="import_backup_subtitle">A Kilonova backup, or a backup file from another launcher</string>
@@ -486,7 +488,7 @@
     <string name="store_play_categories">Google Play categories</string>
     <string name="store_fdroid_categories">F-Droid categories</string>
     <string name="store_card_title">Sort by store category</string>
-    <string name="store_card_body">Groups can take apps by their Google Play or F-Droid category. Kilonova reads F-Droid\u2019s public index and one Play Store page per app (the package name is all that is sent) and keeps the answers on this phone. Use the Play and F-Droid buttons on a group to pick its categories.</string>
+    <string name="store_card_body">Groups can take apps by their Google Play or F-Droid category. Kilonova reads F-Droid\u2019s public index and one Play Store page per app (the package name is all that is sent) and keeps the answers on this device. Use the Play and F-Droid buttons on a group to pick its categories.</string>
     <string name="store_add_groups">Add Play Store groups</string>
     <string name="store_update_now">Update now</string>
     <string name="store_status_never">Not looked up yet</string>

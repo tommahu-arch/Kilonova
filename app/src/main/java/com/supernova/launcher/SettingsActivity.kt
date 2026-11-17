@@ -461,6 +461,7 @@ class SettingsActivity : AppCompatActivity() {
             editGesture = ::showActionPicker,
             pickLockMethod = ::showLockMethodPicker,
             editHiddenApps = ::showHiddenAppsPicker,
+            backupLocation = backup::pickFolder,
             exportBackup = backup::pickExportFile,
             importBackup = backup::pickImportFile,
             shareBackup = ::shareBackup,

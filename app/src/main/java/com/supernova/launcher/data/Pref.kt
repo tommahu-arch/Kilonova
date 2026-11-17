@@ -242,6 +242,8 @@ object Pref {
     val iconGlass = choice("icon_glass", IconGlass.entries)
     val iconSwipeIndicator = bool("icon_swipe_indicator")
     val swipeMarkColor = text("swipe_mark_color")
+    // The folder the backup pickers open in (a tree URI), "" for none.
+    val backupFolder = text("backup_folder")
     val themedIcons = bool("themed_icons")
     val themedIconsAutogen = bool("themed_icons_autogen")
     val lockMethod = choice("lock_method", LockMethod.entries)
