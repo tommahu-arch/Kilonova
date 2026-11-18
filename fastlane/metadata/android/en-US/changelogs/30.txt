@@ -1,0 +1,9 @@
+Upstream Supernova 0.2.4 and later merged in.
+
+- Drawer folders can hold other drawer folders; tabs can loop
+- Swipe actions on apps in home folders
+- Any accent colour for the settings screens, new custom color sheet
+- More search engines and a custom search URL
+- Remove a page with its content, with Undo
+- Round and large icons fill their size; icon shadows are no longer clipped
+- Smoother drawer fast scrolling

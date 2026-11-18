@@ -62,7 +62,7 @@ object StylePickerSheet {
         return com.supernova.launcher.data.IconGlass.fromName(glass) != com.supernova.launcher.data.IconGlass.OFF
     }
 
-    fun show(context: Context, viewModel: LauncherViewModel, surfaceId: SurfaceId) {
+    fun show(context: Context, viewModel: LauncherViewModel, surfaceId: SurfaceId, onDismiss: () -> Unit = {}) {
         val binding = SheetStylePickerBinding.inflate(LayoutInflater.from(context))
         val dialog = com.supernova.launcher.ui.Sheets.open(context)
         dialog.setContentView(binding.root)
@@ -93,9 +93,6 @@ object StylePickerSheet {
         fun persistSoon() {
             binding.root.removeCallbacks(persistLater)
             binding.root.postDelayed(persistLater, CUSTOM_SAVE_DELAY_MS)
-        }
-        dialog.setOnDismissListener {
-            if (binding.root.removeCallbacks(persistLater)) persist()
         }
 
         fun activeSpec(): ColorSpec = when (slot) {
@@ -266,6 +263,11 @@ object StylePickerSheet {
                 binding.opacityValue.text = context.getString(R.string.opacity_percent, percent)
                 applyOpacity(percent)
             }
+        }
+        dialog.setOnDismissListener {
+            if (binding.root.removeCallbacks(persistLater)) persist()
+            custom.remember()
+            onDismiss()
         }
 
         if (surfaceId in OPACITY_SURFACES) {

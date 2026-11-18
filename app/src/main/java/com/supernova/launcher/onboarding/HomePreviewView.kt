@@ -44,6 +44,13 @@ class HomePreviewView @JvmOverloads constructor(
     var topInset = 0
     var bottomInset = 0
 
+    init {
+        // Icons' shadows fall outside them (ShadowedIconDrawable), below
+        // a dock icon past its column.
+        clipChildren = false
+        clipToPadding = false
+    }
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(
             MeasureSpec.makeMeasureSpec(homeWidth, MeasureSpec.EXACTLY),
@@ -57,7 +64,8 @@ class HomePreviewView @JvmOverloads constructor(
         removeAllViews()
         if (homeWidth <= 0 || homeHeight <= 0) return
         val chrome = chromeFor(prefs)
-        val gridTop = topInset + dp(GRID_TOP_DP)
+        // A bar pinned at the top pushes the grid down under it.
+        val gridTop = (chrome.gridTop ?: topInset) + dp(GRID_TOP_DP)
         val gridBottom = chrome.top - dp(GRID_GAP_DP)
         val sidePad = dp(SIDE_PAD_DP)
         val cols = prefs.gridCols.coerceAtLeast(1)
@@ -87,8 +95,14 @@ class HomePreviewView @JvmOverloads constructor(
     }
 
     // Where the dock and the search bar sit, from the bottom up, as the home
-    // screen stacks them.
-    private class Chrome(val top: Int, val dockTop: Int?, val dockHeight: Int, val barTop: Int?)
+    // screen stacks them. gridTop is set when the bar sits at the top instead.
+    private class Chrome(
+        val top: Int,
+        val dockTop: Int?,
+        val dockHeight: Int,
+        val barTop: Int?,
+        val gridTop: Int? = null
+    )
 
     private fun chromeFor(prefs: LauncherPrefs): Chrome {
         val bottom = homeHeight - bottomInset - dp(BOTTOM_GAP_DP)
@@ -98,6 +112,11 @@ class HomePreviewView @JvmOverloads constructor(
         val gap = dp(BAR_GAP_DP)
         val placement = SearchBarPlacement.fromName(SearchBarConfig.decode(prefs.searchBarConfig).desktop.placement)
         val dock = prefs.dockEnabled
+        if (placement == SearchBarPlacement.TOP) {
+            val barTop = topInset + dp(BAR_GAP_DP)
+            val dockTop = if (dock) bottom - dockHeight else null
+            return Chrome(dockTop ?: bottom, dockTop, if (dock) dockHeight else 0, barTop, barTop + barHeight)
+        }
         return when {
             dock && (placement == SearchBarPlacement.DOCK_BELOW || placement == SearchBarPlacement.PERSISTENT) -> {
                 val barTop = bottom - barHeight
@@ -178,6 +197,7 @@ class HomePreviewView @JvmOverloads constructor(
         val column = LinearLayout(context)
         column.orientation = LinearLayout.VERTICAL
         column.gravity = Gravity.CENTER
+        column.clipChildren = false
         val labelRoom = if (labels) dp(LABEL_ROOM_DP) else 0
         val scale = if (labelContext == LabelContext.DOCK) prefs.dockIconScale else prefs.iconScale
         val size = minOf(dp(ICON_DP) * scale, cellW - dp(ICON_INSET_DP), cellH - labelRoom - dp(ICON_INSET_DP))

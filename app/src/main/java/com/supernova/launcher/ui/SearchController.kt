@@ -385,7 +385,7 @@ class SearchController(
             com.supernova.launcher.search.PrivateSpaceSearchProvider(privateSpaceLabel, privateSpaceIcon),
             com.supernova.launcher.search.CardSearchProvider { viewModel.feedCards() },
             WebSearchProvider(
-                provider = { viewModel.state.value.prefs.searchWebProvider },
+                provider = { com.supernova.launcher.search.WebEngine.of(viewModel.state.value.prefs) },
                 chips = { SearchChip.decode(viewModel.state.value.prefs.searchChips) }
             )
         )
@@ -546,8 +546,8 @@ class SearchController(
                 surface.dismiss()
             }
             else -> {
-                val provider = viewModel.state.value.prefs.searchWebProvider
-                if (onOpenUri(provider.searchUrl(query), null)) surface.dismiss()
+                val engine = com.supernova.launcher.search.WebEngine.of(viewModel.state.value.prefs)
+                if (onOpenUri(engine.searchUrl(query), null)) surface.dismiss()
             }
         }
     }
@@ -615,9 +615,11 @@ class SearchController(
         val frequent = viewModel.recentApps(gridColumns())
         val shortcuts = SuggestedShortcuts.pills(viewModel)
         // Folder members live inside their folder, as in the drawer.
-        val groups = viewModel.drawerFolderGroups().filter { viewModel.drawerFolderApps(it).isNotEmpty() }
+        // A folder inside another (#229) lives inside it too.
+        val groups = viewModel.drawerFolderGroups().filter { viewModel.drawerFolderHasContent(it) }
         val inFolders = groups.filter { viewModel.leavesMainList(it) }.flatMapTo(HashSet()) { it.members }
-        val folders = groups.map { group ->
+        val shown = groups.filterNot { com.supernova.launcher.data.TabFolders.keyOf(it.id) in inFolders }
+        val folders = shown.map { group ->
             SearchResult.Folder(
                 itemId = null, groupId = group.id, label = group.name,
                 icon = folderIcon(com.supernova.launcher.search.FolderSearchProvider.Hit(null, group.id, group.name))

@@ -96,7 +96,7 @@ class ActionPickerSheet private constructor(
             tabGravity = TabLayout.GRAVITY_FILL
             setBackgroundColor(android.graphics.Color.TRANSPARENT)
             setTabTextColors(context.getColor(R.color.textSecondary), context.getColor(R.color.textPrimary))
-            setSelectedTabIndicatorColor(context.getColor(R.color.accent))
+            setSelectedTabIndicatorColor(com.supernova.launcher.ui.theme.CustomAccent.of(this))
             addTab(newTab().setText(R.string.app_name))
             addTab(newTab().setText(R.string.picker_tab_apps))
             addTab(newTab().setText(R.string.picker_tab_shortcuts))
@@ -232,6 +232,9 @@ class ActionPickerSheet private constructor(
             val root = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
+                // An app icon's shadow falls outside it.
+                clipChildren = false
+                clipToPadding = false
                 minimumHeight = context.dp(ROW_MIN_HEIGHT_DP)
                 val gutter = context.dp(ROW_GUTTER_DP)
                 val inset = context.dp(ROW_INSET_DP)
