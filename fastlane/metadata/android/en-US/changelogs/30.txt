@@ -7,3 +7,4 @@ Upstream Supernova 0.2.4 and later merged in.
 - Remove a page with its content, with Undo
 - Round and large icons fill their size; icon shadows are no longer clipped
 - Smoother drawer fast scrolling
+- Drawer: Move to... in an app's long-press menu puts it in a tab or folder
