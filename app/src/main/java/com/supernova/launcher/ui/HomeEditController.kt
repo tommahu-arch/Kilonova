@@ -51,8 +51,8 @@ class HomeEditController(
         // for the page it stands for, and runs `then` once edit mode has
         // closed on that page.
         fun setAddPageSlot(show: Boolean)
-        // Remove page, beside the marker: offered on an empty page while
-        // there is another to fall back on.
+        // Remove page, beside the marker: offered while there is another
+        // page to fall back on; a page with content goes with an Undo bar.
         fun canRemoveCurrentPage(): Boolean
         fun removeCurrentPage()
         fun onAddPage(): Boolean
@@ -165,10 +165,8 @@ class HomeEditController(
     }
 
     private fun applyOverlayInsets(ov: ViewEditModeBinding) {
-        for (view in listOf(ov.editHomeMarker, ov.editRemovePage)) {
-            (view.layoutParams as FrameLayout.LayoutParams).topMargin = barInsets.top + activity.dp(8)
-            view.requestLayout()
-        }
+        (ov.editPageButtons.layoutParams as FrameLayout.LayoutParams).topMargin = barInsets.top + activity.dp(8)
+        ov.editPageButtons.requestLayout()
     }
 
     fun enter() {
@@ -225,7 +223,7 @@ class HomeEditController(
         val pager = binding.workspacePager
         // The page's top edge moves down to clear the marker; its bottom must
         // clear the chips, which fixes the scale.
-        val markerBottom = (ov.editHomeMarker.layoutParams as FrameLayout.LayoutParams).topMargin +
+        val markerBottom = (ov.editPageButtons.layoutParams as FrameLayout.LayoutParams).topMargin +
             ov.editHomeMarker.layoutParams.height
         val shift = (markerBottom + activity.dp(10) - pager.top).coerceAtLeast(0)
         val chipsTop = rootHeight - peek - activity.dp(12) - chipHeight

@@ -193,10 +193,10 @@ class PrefRegistryTest {
         accent_color:BLUE,INDIGO,PURPLE,PINK,RED,ORANGE,AMBER,GREEN,TEAL,CYAN
         palette_source:SYSTEM,WALLPAPER,CUSTOM
         label_font:DEFAULT,CONDENSED,SERIF,MONOSPACE
-        search_web_provider:GOOGLE,DUCKDUCKGO,BRAVE,BING
+        search_web_provider:GOOGLE,DUCKDUCKGO,BRAVE,BING,ECOSIA,STARTPAGE,QWANT,YAHOO,YANDEX,KAGI,CUSTOM
         search_window_mode:IMMERSIVE,WINDOW
         popup_style:BLOCK,PILLS,ANDROID12
-        animation_speed:SLOW,DEFAULT,FAST,FASTER
+        animation_speed:RELAXED,FAST
         launch_animation:SYSTEM,CIRCLE,ADAPTIVE_ICON,REVEAL,SLIDE_UP,ZOOM,BLINK,SLIDE_LEFT
         dark_status_icons:AUTO,LIGHT,DARK
 """
@@ -231,7 +231,7 @@ class PrefRegistryTest {
         palette_seed:S style_config:S widget_corner_radius:I show_scrims:B wallpaper_zoom:B
         auto_add_apps:B label_font:S label_single_line:B dock_infinite_scroll:B
         dock_match_desktop:B dock_overlay:B dock_auto_close:B dock_remember_position:B
-        dock_padding_h:I dock_padding_v:I search_web_provider:S search_contacts:B
+        dock_padding_h:I dock_padding_v:I search_web_provider:S search_web_custom_url:S search_contacts:B
         search_shortcuts:B search_folders:B search_window_mode:S search_apps_one_row:B
         search_contact_cards:B search_cards:B search_calculator:B search_hidden_apps:B
         search_history:B search_private_keyboard:B search_query_shortcuts:B search_bar_widget_id:I
@@ -239,7 +239,7 @@ class PrefRegistryTest {
         home_button_on_main_page:B search_bar_config:S popup_notifications:B popup_card_bg:B
         popup_group_shortcuts:B popup_action_icons:B popup_style:S popup_items_home:S
         popup_items_drawer:S drop_targets:B undo_remove:B disable_animations:B animation_speed:S
-        launch_animation:S hide_status_bar:B dark_status_icons:S transparent_nav:B icon_wiggle:B
+        launch_animation:S hide_status_bar:B dark_status_icons:S transparent_nav:B
         transparent_status:B home_rotation:B home_orientation:S feed_enabled:B feed_edge_swipe:B
         feed_show_search:B feed_show_frequent:B feed_show_shortcuts:B feed_show_media:B
         feed_show_calendar:B feed_show_contacts:B feed_shortcut_rows:I labs_enabled:B

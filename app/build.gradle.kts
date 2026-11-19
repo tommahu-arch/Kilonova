@@ -28,8 +28,8 @@ android {
         applicationId = "com.kilonova.launcher"
         minSdk = 28
         targetSdk = 36
-        versionCode = 29
-        versionName = "0.0.9"
+        versionCode = 30
+        versionName = "0.0.10"
         // For app/src/androidTest (SmokeTest): read its warning before
         // running it on a phone in use.
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

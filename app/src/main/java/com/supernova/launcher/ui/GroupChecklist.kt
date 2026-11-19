@@ -7,7 +7,7 @@ import com.supernova.launcher.data.GroupPick
 import com.supernova.launcher.data.LaunchableApp
 
 // A drawer group's Select apps, from the Drawer groups page and from a
-// drawer folder's menu: the given apps and, for a tab, the drawer folders it
+// drawer folder's menu: the given apps and the drawer folders it
 // can hold, first and with their folder icons. Its title is the group's name,
 // which can be typed over. Save renames the group and writes only the ticks
 // that changed, both to the group by its id.
@@ -33,11 +33,17 @@ class GroupChecklist(
         // As stored now: a rename elsewhere may have come after the copy this
         // was opened with.
         val title = name ?: viewModel.drawerGroups().firstOrNull { it.id == group.id }?.name ?: group.name
-        AppChecklist(context, picks, checked.copyOf(), iconOf, GroupPick::label).showRenamable(title) { ticks, typed ->
-            val stored = viewModel.drawerGroups().firstOrNull { it.id == group.id } ?: group
-            viewModel.renameGroup(stored, typed)
-            val changes = picks.indices.filter { ticks[it] != checked[it] }.associate { picks[it] to ticks[it] }
-            if (changes.isNotEmpty()) viewModel.setGroupMembership(group.id, changes)
+        // Apps already in another group (tab or folder) can be hidden (#257).
+        val others = viewModel.drawerGroups().filter { it.id != group.id }
+        val placedElsewhere: (GroupPick) -> Boolean = { pick ->
+            pick is GroupPick.App && others.any { viewModel.isPicked(pick, it) }
         }
+        AppChecklist(context, picks, checked.copyOf(), iconOf, GroupPick::label, placedElsewhere)
+            .showRenamable(title) { ticks, typed ->
+                val stored = viewModel.drawerGroups().firstOrNull { it.id == group.id } ?: group
+                viewModel.renameGroup(stored, typed)
+                val changes = picks.indices.filter { ticks[it] != checked[it] }.associate { picks[it] to ticks[it] }
+                if (changes.isNotEmpty()) viewModel.setGroupMembership(group.id, changes)
+            }
     }
 }

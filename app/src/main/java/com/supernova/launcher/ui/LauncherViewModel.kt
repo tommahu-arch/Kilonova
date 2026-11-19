@@ -36,7 +36,6 @@ import com.supernova.launcher.data.IconShape
 import com.supernova.launcher.data.ItemType
 import com.supernova.launcher.data.LabelOrder
 import com.supernova.launcher.data.LaunchableApp
-import com.supernova.launcher.data.LARGE_ICON_SPAN
 import com.supernova.launcher.data.LauncherItem
 import com.supernova.launcher.data.LauncherPreferences
 import com.supernova.launcher.data.LauncherPrefs
@@ -572,12 +571,13 @@ class LauncherViewModel(
     // size slider's drag re-renders at a few steps rather than every tick.
     private fun iconResolution(prefs: com.supernova.launcher.data.LauncherPrefs, largeIcons: Boolean): Float {
         val scales = listOf(
-            if (largeIcons) prefs.iconScale * LARGE_ICON_SPAN else prefs.iconScale,
+            if (largeIcons) prefs.iconScale * LARGE_ICON_RESOLUTION else prefs.iconScale,
             if (prefs.dockMatchDesktop) prefs.iconScale else prefs.dockIconScale,
             if (prefs.drawerMatchDesktop) prefs.iconScale else prefs.drawerIconScale,
             if (prefs.folderMatchDesktop) prefs.iconScale else prefs.folderIconScale
         )
-        val largest = scales.maxOrNull()?.coerceIn(1f, MAX_ICON_RESOLUTION) ?: 1f
+        val cap = if (largeIcons) LARGE_ICON_RESOLUTION else MAX_ICON_RESOLUTION
+        val largest = scales.maxOrNull()?.coerceIn(1f, cap) ?: 1f
         return kotlin.math.ceil(largest * 5f - 0.001f) / 5f
     }
 
@@ -632,7 +632,7 @@ class LauncherViewModel(
             app,
             prefs.paletteSource,
             prefs.paletteSeed,
-            fallbackSeed = app.getColor(com.supernova.launcher.R.color.accent)
+            fallbackSeed = com.supernova.launcher.ui.theme.ThemeEngine.accentColor(app, prefs.accentColor)
         )
         val night = isNightMode(prefs)
         val bg = palette.tone(
@@ -903,12 +903,12 @@ class LauncherViewModel(
     fun setSearchBarWidget(id: Int, provider: String) = persist { preferences.setSearchBarWidget(id, provider) }
 
     // Rewrites one context's slice of the labelConfig document. The transform
-    // sees the current override; returning an all-null override goes back to
-    // inheriting the desktop labels.
+    // sees the stored override (values kept while switched off); an all-null
+    // or switched-off one inherits the desktop labels.
     fun updateLabelOverride(context: LabelContext, transform: (LabelOverride) -> LabelOverride) {
         val prefs = state.value.prefs
         val config = LabelConfig.decode(prefs.labelConfig)
-        val updated = config.with(context, transform(config.of(context)))
+        val updated = config.with(context, transform(config.stored(context)))
         viewModelScope.launch { preferences.set(Pref.labelConfig, updated.encode()) }
     }
 
@@ -1268,9 +1268,43 @@ class LauncherViewModel(
 
     // The drawer folders a list shows: a tab's own, or for the main list
     // (null) every folder no tab took out of it.
+    // A folder inside another folder (#229) shows there, not on the main list.
     fun drawerFoldersFor(tab: DrawerGroup?): List<DrawerGroup> {
         val folders = drawerFolderGroups()
-        return if (tab == null) TabFolders.onMainList(folders, isolatedTabKeys()) else TabFolders.inTab(tab, folders)
+        return if (tab == null) {
+            TabFolders.onMainList(folders, isolatedTabKeys() + TabFolders.nestedKeys(folders, ::leavesMainList))
+        } else {
+            TabFolders.inTab(tab, folders)
+        }
+    }
+
+    // The drawer folders a drawer folder holds that have something to show.
+    fun drawerFolderFolders(group: DrawerGroup): List<DrawerGroup> {
+        val folders = drawerFolderGroups()
+        return TabFolders.heldBy(group, folders).filter { hasFolderContent(it, folders) }
+    }
+
+    // Whether a drawer folder shows: an app of its own, or a folder inside
+    // it that has one.
+    fun drawerFolderHasContent(group: DrawerGroup): Boolean = hasFolderContent(group, drawerFolderGroups())
+
+    private fun hasFolderContent(group: DrawerGroup, folders: List<DrawerGroup>): Boolean =
+        TabFolders.hasContent(group, folders) { drawerFolderApps(it).isNotEmpty() }
+
+    // A drawer folder's card and preview: its folders and apps, in A-Z
+    // together as the drawer lists them, or its folders first where the
+    // drawer puts folders first or isn't sorted by name.
+    fun drawerFolderContents(group: DrawerGroup, apps: List<LaunchableApp>): List<GroupPick> {
+        val folders = drawerFolderFolders(group).map(GroupPick::Folder)
+        if (folders.isEmpty()) return apps.map(GroupPick::App)
+        val prefs = state.value.prefs
+        val byName = prefs.drawerSort == DrawerSort.ALPHA || prefs.drawerSort == DrawerSort.ALPHA_REVERSE
+        return if (byName && !prefs.drawerFoldersFirst) {
+            val descending = prefs.drawerSort == DrawerSort.ALPHA_REVERSE
+            LabelOrder.sorted(folders + apps.map(GroupPick::App), descending) { it.label }
+        } else {
+            LabelOrder.sorted(folders) { it.label } + apps.map(GroupPick::App)
+        }
     }
 
     // Like any edit, it makes a smart folder the user's: regenerating the
@@ -1361,14 +1395,15 @@ class LauncherViewModel(
         return visible.filter { hiddenKey(it) in group.members }
     }
 
-    // A group's Select apps rows: [apps], and first for a tab the drawer
-    // folders it can hold - each one with apps to show, and any it already
-    // holds, so an emptied one can still be let go.
+    // A group's Select apps rows: [apps], and first the drawer folders it
+    // can hold - each one with something to show, and any it already holds,
+    // so an emptied one can still be let go. A folder can hold folders too
+    // (#229), but never itself or one it sits inside.
     fun groupPicks(group: DrawerGroup, apps: List<LaunchableApp>): List<GroupPick> {
-        val folders = if (group.type == DrawerGroupType.TAB) {
-            drawerFolderGroups().filter { drawerFolderApps(it).isNotEmpty() || isPicked(GroupPick.Folder(it), group) }
-        } else {
-            emptyList()
+        val all = drawerFolderGroups()
+        val folders = all.filter { folder ->
+            val fits = group.type == DrawerGroupType.TAB || TabFolders.canHold(group, folder, all)
+            fits && (hasFolderContent(folder, all) || isPicked(GroupPick.Folder(folder), group))
         }
         return folders.map(GroupPick::Folder) + apps.map(GroupPick::App)
     }
@@ -1395,6 +1430,24 @@ class LauncherViewModel(
         val add = changes.filterValues { it }.keys.map(::memberKey).toSet()
         val remove = changes.filterValues { !it }.keys.map(::memberKey).toSet()
         editGroup(groupId) { it.copy(members = it.members - remove + add, smart = false) }
+    }
+
+    // Kilonova: Move. The app leaves every group it was picked into by hand
+    // and goes into `destination` (null: none, back in the main list), in one
+    // edit. A hand-picked app is no longer sorted by store category.
+    fun moveAppToGroup(app: LaunchableApp, destination: String?) {
+        val key = memberKey(GroupPick.App(app))
+        viewModelScope.launch {
+            preferences.updateDrawerGroups { groups ->
+                groups.map { group ->
+                    when {
+                        group.id == destination -> group.copy(members = group.members + key, smart = false)
+                        key in group.members -> group.copy(members = group.members - key, smart = false)
+                        else -> group
+                    }
+                }
+            }
+        }
     }
 
     // The new group ('|' can't be in its name), or null, and nothing
@@ -1493,6 +1546,14 @@ class LauncherViewModel(
     fun removePage(page: Int, onRemoved: (() -> Unit)? = null) {
         viewModelScope.launch { if (repository.removePage(page)) onRemoved?.invoke() }
     }
+
+    // A page with its content (#215); onRemoved hears what went, for Undo.
+    fun removePageWithItems(page: Int, onRemoved: (com.supernova.launcher.data.RemovedPage) -> Unit) {
+        viewModelScope.launch { repository.removePageWithItems(page)?.let(onRemoved) }
+    }
+
+    fun restorePage(removed: com.supernova.launcher.data.RemovedPage) =
+        persist { repository.restorePage(removed) }
 
     // onRemoved hears the pages that went (old numbers), when any did.
     fun removeEmptyPages(keep: Set<Int>, onRemoved: (List<Int>) -> Unit) {
@@ -1683,6 +1744,10 @@ class LauncherViewModel(
     private companion object {
         // The icon size settings' top.
         const val MAX_ICON_RESOLUTION = 2f
+        // A large icon fills its 2x2 block (largeIconBoxPx), about two and a
+        // half to three times the desktop size: rendered at 2.5, it stays
+        // sharp without every icon in the cache growing past that.
+        const val LARGE_ICON_RESOLUTION = 2.5f
         // How long a package-callback rescan waits for its burst to settle.
         const val REFRESH_COALESCE_MS = 300L
         // How long the first frame may wait for the startup warm before the
