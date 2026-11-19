@@ -1432,6 +1432,24 @@ class LauncherViewModel(
         editGroup(groupId) { it.copy(members = it.members - remove + add, smart = false) }
     }
 
+    // Kilonova: Move. The app leaves every group it was picked into by hand
+    // and goes into `destination` (null: none, back in the main list), in one
+    // edit. A hand-picked app is no longer sorted by store category.
+    fun moveAppToGroup(app: LaunchableApp, destination: String?) {
+        val key = memberKey(GroupPick.App(app))
+        viewModelScope.launch {
+            preferences.updateDrawerGroups { groups ->
+                groups.map { group ->
+                    when {
+                        group.id == destination -> group.copy(members = group.members + key, smart = false)
+                        key in group.members -> group.copy(members = group.members - key, smart = false)
+                        else -> group
+                    }
+                }
+            }
+        }
+    }
+
     // The new group ('|' can't be in its name), or null, and nothing
     // created, when the name is empty. Another group may have the name.
     fun createGroup(

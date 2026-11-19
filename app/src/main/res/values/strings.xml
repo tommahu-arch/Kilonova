@@ -207,6 +207,11 @@
     <string name="move_to_drawer_put_in">Put it in</string>
     <string name="move_to_drawer_tab_hint">Its apps get a tab of their own, named “%1$s”.</string>
     <string name="move">Move</string>
+    <!-- Kilonova: drawer item menu, Move to a tab or folder. -->
+    <string name="move_to_group">Move to…</string>
+    <string name="move_to_group_title">Move to</string>
+    <string name="move_to_group_main">No group (main list)</string>
+    <string name="moved_to_group">Moved to %1$s</string>
     <plurals name="move_to_drawer_summary">
         <item quantity="one">“%1$s” · %2$d app</item>
         <item quantity="other">“%1$s” · %2$d apps</item>
