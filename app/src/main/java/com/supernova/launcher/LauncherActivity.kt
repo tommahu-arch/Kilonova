@@ -3194,6 +3194,14 @@ class LauncherActivity :
         // drag/tap gestures, so they leave the menu. Extra rows stay opt-in.
         // Nothing of a private space app goes home (longPressNewApp).
         val homeClosed = desktopLocked || app.privateSpace
+        // Kilonova: Move to a drawer tab or folder (a private space app has
+        // no drawer groups).
+        if (!app.privateSpace && viewModel.drawerGroups().isNotEmpty()) {
+            menu.addRow(getString(R.string.move_to_group), R.drawable.ic_menu_move) {
+                showMoveToGroup(app)
+                source?.dismiss()
+            }
+        }
         if (!homeClosed) {
             menu.addRow(getString(R.string.add_to_home), R.drawable.ic_menu_add) {
                 placeTapped(viewModel.state.value.currentPage) { spot ->
@@ -3273,6 +3281,29 @@ class LauncherActivity :
         }
         menu.show(anchor, menuTouchX)
         return menu
+    }
+
+    // Kilonova: the destination list for Move; one tap moves the app.
+    private fun showMoveToGroup(app: LaunchableApp) {
+        val groups = viewModel.drawerGroups()
+        val labels = (listOf(getString(R.string.move_to_group_main)) + groups.map { group ->
+            val type = getString(
+                if (group.type == com.supernova.launcher.data.DrawerGroupType.TAB) R.string.group_type_tab else R.string.folder
+            )
+            "${group.name} \u00b7 $type"
+        }).toTypedArray()
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.move_to_group_title))
+            .setItems(labels) { _, which ->
+                val target = groups.getOrNull(which - 1)
+                viewModel.moveAppToGroup(app, target?.id)
+                android.widget.Toast.makeText(
+                    this, getString(R.string.moved_to_group, target?.name ?: labels[0]),
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     // An app shortcut long-pressed in search:
