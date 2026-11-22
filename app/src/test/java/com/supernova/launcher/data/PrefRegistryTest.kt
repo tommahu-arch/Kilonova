@@ -222,7 +222,7 @@ class PrefRegistryTest {
         drawer_labels:B folder_labels:B icon_normalize:B reshape_legacy:S icon_shadow:B
         icon_glass:S icon_swipe_indicator:B themed_icons:B themed_icons_autogen:B lock_method:S
         badge_color:S badge_position:S badge_scale:F badge_text_color:S badge_corner_radius:I
-        badge_outline:B folder_preview_style:S folder_prioritize_first:B folder_columns:I
+        badge_outline:B badge_on_corner:B folder_preview_style:S folder_prioritize_first:B folder_columns:I
         folder_close_on_launch:B folder_icon_scale:F folder_match_desktop:B
         folder_show_name:B folder_show_count:B folder_mode:S folder_shadow:B folder_scroll:S
         folder_icon_shape:S folder_icon_outline:B folder_match_window_color:B
@@ -236,7 +236,7 @@ class PrefRegistryTest {
         search_contact_cards:B search_cards:B search_calculator:B search_hidden_apps:B
         search_history:B search_private_keyboard:B search_query_shortcuts:B search_bar_widget_id:I
         search_bar_widget_provider:S search_chips:S home_search:B home_button_action:S
-        home_button_on_main_page:B search_bar_config:S popup_notifications:B popup_card_bg:B
+        home_button_on_main_page:B home_return_to_default_page:B search_bar_config:S popup_notifications:B popup_card_bg:B
         popup_group_shortcuts:B popup_action_icons:B popup_style:S popup_items_home:S
         popup_items_drawer:S drop_targets:B undo_remove:B disable_animations:B animation_speed:S
         launch_animation:S hide_status_bar:B dark_status_icons:S transparent_nav:B

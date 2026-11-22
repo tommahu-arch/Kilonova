@@ -3,6 +3,9 @@ package com.supernova.launcher.ui.settings
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import com.supernova.launcher.data.LauncherPrefs
+import com.supernova.launcher.ui.DrawerTransition
+import com.supernova.launcher.ui.LaunchAnimation
+import com.supernova.launcher.ui.ScrollEffect
 
 // What a Preview row renders; each kind maps to one build/tick path in
 // SettingsPreviewView. HOME and SEARCH_BAR are drawn over the wallpaper.
@@ -123,7 +126,15 @@ sealed class SettingItem {
         val titleText: CharSequence? = null,
         val look: RowLook = RowLook()
     ) : SettingItem() {
-        fun withLook(look: RowLook): Row = Row(title, subtitle, onClick, visibleIf, titleText, look)
+        // A long press, for a row that also offers it (About's version
+        // copies the device details, #279); null for none.
+        var onLongClick: (() -> Unit)? = null
+            private set
+
+        fun withLook(look: RowLook): Row =
+            Row(title, subtitle, onClick, visibleIf, titleText, look).also { it.onLongClick = onLongClick }
+
+        fun onLongPress(action: () -> Unit): Row = apply { onLongClick = action }
     }
 
     // How a Row dresses in its card: the icon in its leading tile, 0 for
@@ -225,5 +236,16 @@ class Choice(
     val onPick: (Int) -> Unit,
     // A colour per option, drawn as a dot before its label (a colour choice);
     // a null entry is an option with no colour of its own (Default).
-    val swatches: List<Int?>? = null
+    val swatches: List<Int?>? = null,
+    // A motion setting's live preview: the choice opens as a sheet that
+    // plays the option in force over its list (#260).
+    val preview: ChoicePreview<*>? = null
 )
+
+// What a Choice's sheet previews: its options, in the order the sheet
+// lists them.
+sealed class ChoicePreview<T>(val values: List<T>) {
+    object PageEffect : ChoicePreview<ScrollEffect>(ScrollEffect.entries)
+    object Launch : ChoicePreview<LaunchAnimation>(LaunchAnimation.entries)
+    object Drawer : ChoicePreview<DrawerTransition>(DrawerTransition.entries)
+}

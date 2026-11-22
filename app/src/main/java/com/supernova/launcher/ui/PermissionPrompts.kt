@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.annotation.StringRes
+import androidx.core.content.edit
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.supernova.launcher.R
 import com.supernova.launcher.data.LauncherPrefs
@@ -79,6 +80,32 @@ object PermissionPrompts {
             }
         }
     }
+
+    // A runtime permission asked for from a card. Once Android has stopped
+    // showing its dialog (denied twice), asking again would do nothing, so
+    // the app's info page opens instead, where it can still be allowed.
+    fun askRuntime(activity: Activity, permission: String, ask: () -> Unit) {
+        val granted = activity.checkSelfPermission(permission) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+        val asked = activity.getSharedPreferences(ASKED_PREFS, Context.MODE_PRIVATE)
+        if (!granted && asked.getBoolean(permission, false) &&
+            !activity.shouldShowRequestPermissionRationale(permission)
+        ) {
+            android.widget.Toast.makeText(activity, R.string.permission_in_app_info, android.widget.Toast.LENGTH_LONG)
+                .show()
+            runLogged("open app info") {
+                activity.startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                        .setData(android.net.Uri.fromParts("package", activity.packageName, null)),
+                )
+            }
+            return
+        }
+        asked.edit { putBoolean(permission, true) }
+        ask()
+    }
+
+    private const val ASKED_PREFS = "permission_asks"
 
     // The disclosure store policy asks for before the system screen: what
     // the service does and doesn't do, and an explicit Agree. Every way into

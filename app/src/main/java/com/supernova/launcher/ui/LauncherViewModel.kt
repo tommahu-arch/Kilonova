@@ -45,7 +45,6 @@ import com.supernova.launcher.data.PrefSpec
 import com.supernova.launcher.data.PrivateSpace
 import com.supernova.launcher.data.TabFolders
 import com.supernova.launcher.data.WorkspaceGeometry
-import com.supernova.launcher.data.isLargeIcon
 import com.supernova.launcher.data.imports.BackupFiles
 import com.supernova.launcher.data.imports.LayoutConverter
 import com.supernova.launcher.data.imports.PickedBackup
@@ -152,8 +151,9 @@ class LauncherViewModel(
 
     // A setting's write: off the main thread, fire and forget. Every plain
     // setter below is one of these.
+    // A write that fails (a full disk) is noted, not a crash on every tap.
     private fun persist(block: suspend () -> Unit) {
-        viewModelScope.launch { block() }
+        viewModelScope.launch { com.supernova.launcher.runLogged("save to the settings store") { block() } }
     }
 
     // Any one setting: viewModel.set(Pref.gridRows, 7). The settings that
@@ -183,6 +183,7 @@ class LauncherViewModel(
     private var appliedGlass: com.supernova.launcher.data.IconGlass? = null
     // Themed-icon colors depend on the whole palette, so track a signature.
     private var appliedThemedSig: String? = null
+    private var appliedNight: Boolean? = null
     private var autoBackupWritten = false
 
     // Whether each of the two icon-configuration collectors has applied its
@@ -216,11 +217,7 @@ class LauncherViewModel(
             }
         }
         viewModelScope.launch {
-            // A large icon draws at twice the desktop size, so the icons
-            // render for it while there is one.
-            val largeIcons = repository.modelFlow.map { model -> model.items.any { it.isLargeIcon } }
-                .distinctUntilChanged()
-            preferences.flow.combine(largeIcons) { prefs, large -> prefs to large }.collect { (prefs, large) ->
+            preferences.flow.collect { prefs ->
                 WorkspaceGeometry.allowWidgetOverlap = prefs.widgetOverlap
                 WorkspaceGeometry.allowPlacementOverlap = prefs.overlapWhenPlacing
                 val packChanged = prefs.iconPack != appliedIconPack
@@ -232,14 +229,19 @@ class LauncherViewModel(
                 val glassChanged = prefs.iconGlass != appliedGlass
                 val themedSig = themedIconSignature(prefs)
                 val themedChanged = themedSig != appliedThemedSig
-                val resolution = iconResolution(prefs, large)
+                val resolution = iconResolution(prefs)
                 val resolutionChanged = resolution != appliedResolution
+                val largeResolution = largeIconResolution(prefs, resolution)
+                val largeResolutionChanged = largeResolution != appliedLargeResolution
+                val night = isNightMode(prefs)
+                val nightChanged = night != appliedNight
                 val changes = listOf(
                     packChanged, shapeChanged, normalizeChanged, shadowChanged,
-                    glassChanged, themedChanged, resolutionChanged
+                    glassChanged, themedChanged, resolutionChanged, largeResolutionChanged, nightChanged
                 )
                 if (changes.none { it }) return@collect
                 appliedResolution = resolution
+                appliedLargeResolution = largeResolution
                 appliedIconPack = prefs.iconPack
                 appliedIconShape = prefs.iconShape
                 appliedIconShapeCustom = prefs.iconShapeCustom
@@ -247,7 +249,12 @@ class LauncherViewModel(
                 appliedShadow = prefs.iconShadow
                 appliedGlass = prefs.iconGlass
                 appliedThemedSig = themedSig
-                withContext(Dispatchers.Default) {
+                appliedNight = night
+                // A themed-color change that dropped no icon (Themed icons
+                // off) has nothing to redraw.
+                val redraw = withContext(Dispatchers.Default) {
+                    // Before the pack: a pack loads in the mode it is set to.
+                    val nightEvicted = nightChanged && catalog.applyNight(night)
                     if (packChanged) catalog.applyIconPack(prefs.iconPack)
                     if (shapeChanged) {
                         catalog.applyIconShape(
@@ -261,10 +268,13 @@ class LauncherViewModel(
                         catalog.applyIconGlass(prefs.iconGlass)
                     }
                     if (resolutionChanged) catalog.applyIconResolution(resolution)
-                    if (themedChanged) {
+                    if (largeResolutionChanged) catalog.applyLargeIconResolution(largeResolution)
+                    val themedEvicted = themedChanged && run {
                         val (bg, fg) = themedIconColors(prefs)
                         catalog.applyThemedIcons(prefs.themedIcons, bg, fg, prefs.themedIconsAutogen)
                     }
+                    themedEvicted || nightEvicted || packChanged || shapeChanged || normalizeChanged || shadowChanged ||
+                        glassChanged || resolutionChanged || largeResolutionChanged
                 }
                 // The first emission is the startup configuration: it applies
                 // it and stops there, leaving the enumeration, the warm and
@@ -274,7 +284,7 @@ class LauncherViewModel(
                 val firstConfig = !prefsApplied
                 prefsApplied = true
                 signalConfigAppliedIfReady()
-                if (!firstConfig) {
+                if (!firstConfig && redraw) {
                     requestRefresh(immediate = true)
                     iconGeneration.value += 1
                 }
@@ -336,6 +346,7 @@ class LauncherViewModel(
             // install's auto-add and smart-folder placement both run their
             // own fresh lookups rather than waiting on appsFlow.
             requestRefresh(immediate = false)
+            SearchMarks.forget()
             when (change) {
                 is AppChange.Removed -> {
                     viewModelScope.launch(Dispatchers.Default) { catalog.invalidatePackages(listOf(change.packageName)) }
@@ -428,15 +439,23 @@ class LauncherViewModel(
         catalog.warmIcons(firstFrameApps(repository.modelFlow.first()))
         iconGeneration.compareAndSet(0, 1)
 
+        // The list as the last run left it, so a drawer opened now has its
+        // apps while they are listed afresh: with a few hundred apps that
+        // takes seconds, and the drawer was empty until it was done.
+        if (appsFlow.value.isEmpty()) appsFlow.value = appListCache.load()
+
         // Behind the drawn frame: the list the drawer needs, and every other
         // icon. The first-frame icons are cache hits here.
         val apps = catalog.listLaunchableApps()
         privateSpaceFlow.value = catalog.privateSpace()
         pausedWorkFlow.value = catalog.pausedWorkProfiles()
         appsFlow.value = apps
+        appListCache.save(apps)
         pruneUninstalled(apps)
         catalog.warmIcons(apps)
     }
+
+    private val appListCache by lazy { com.supernova.launcher.data.AppListCache(getApplication()) }
 
     // Catching up on uninstalls the launcher missed (its process was gone
     // when the app went): an item whose app is no longer installed goes, as
@@ -547,6 +566,7 @@ class LauncherViewModel(
         privateSpaceFlow.value = catalog.privateSpace()
         pausedWorkFlow.value = catalog.pausedWorkProfiles()
         appsFlow.value = apps
+        appListCache.save(apps)
         pruneUninstalled(apps)
         // Pre-warm off the main thread so binds become cache hits; the
         // render lock keeps this safe alongside main-thread misses.
@@ -566,19 +586,29 @@ class LauncherViewModel(
     }
 
     private var appliedResolution = 0f
+    private var appliedLargeResolution = 0f
 
     // The largest icon size any surface draws at, rounded up to a fifth so a
     // size slider's drag re-renders at a few steps rather than every tick.
-    private fun iconResolution(prefs: com.supernova.launcher.data.LauncherPrefs, largeIcons: Boolean): Float {
+    // A Large icon's copy is rendered on its own (largeIconResolution); one
+    // on the home screen used to raise every icon to it, so the cache held a
+    // fifth as many.
+    private fun iconResolution(prefs: com.supernova.launcher.data.LauncherPrefs): Float {
         val scales = listOf(
-            if (largeIcons) prefs.iconScale * LARGE_ICON_RESOLUTION else prefs.iconScale,
+            prefs.iconScale,
             if (prefs.dockMatchDesktop) prefs.iconScale else prefs.dockIconScale,
             if (prefs.drawerMatchDesktop) prefs.iconScale else prefs.drawerIconScale,
             if (prefs.folderMatchDesktop) prefs.iconScale else prefs.folderIconScale
         )
-        val cap = if (largeIcons) LARGE_ICON_RESOLUTION else MAX_ICON_RESOLUTION
-        val largest = scales.maxOrNull()?.coerceIn(1f, cap) ?: 1f
+        val largest = scales.maxOrNull()?.coerceIn(1f, MAX_ICON_RESOLUTION) ?: 1f
         return kotlin.math.ceil(largest * 5f - 0.001f) / 5f
+    }
+
+    // A Large icon fills its 2x2 block, about two and a half times the
+    // desktop size, rounded up to a fifth as iconResolution is.
+    private fun largeIconResolution(prefs: com.supernova.launcher.data.LauncherPrefs, normal: Float): Float {
+        val large = (prefs.iconScale * LARGE_ICON_RESOLUTION).coerceIn(1f, LARGE_ICON_RESOLUTION)
+        return maxOf(normal, kotlin.math.ceil(large * 5f - 0.001f) / 5f)
     }
 
     // Called as the launcher's activity is created: a Display size change
@@ -616,11 +646,16 @@ class LauncherViewModel(
             val signature = themedIconSignature(prefs)
             if (signature == appliedThemedSig) return@launch
             appliedThemedSig = signature
-            withContext(Dispatchers.Default) {
+            // A day/night icon pack swaps halves too (#288).
+            val night = isNightMode(prefs)
+            val nightChanged = night != appliedNight
+            appliedNight = night
+            val evicted = withContext(Dispatchers.Default) {
+                val packEvicted = nightChanged && catalog.applyNight(night)
                 val (bg, fg) = themedIconColors(prefs)
-                catalog.applyThemedIcons(prefs.themedIcons, bg, fg, prefs.themedIconsAutogen)
+                catalog.applyThemedIcons(prefs.themedIcons, bg, fg, prefs.themedIconsAutogen) || packEvicted
             }
-            iconGeneration.value += 1
+            if (evicted) iconGeneration.value += 1
         }
     }
 
@@ -1034,9 +1069,40 @@ class LauncherViewModel(
     // out: they can't go home, into folders or onto gestures, which would
     // still show or open them once the space is locked.
     fun visibleApps(): List<LaunchableApp> {
-        val hidden = state.value.prefs.hiddenApps
-        return sortedApps(withOverrides(state.value.apps.filterNot { it.privateSpace || hiddenKey(it) in hidden }))
+        val current = state.value
+        val hidden = current.prefs.hiddenApps
+        // Launch counts only order the usage sorts: keyed on them always,
+        // every app launch re-sorted the whole list at the next open.
+        val sort = current.prefs.drawerSort
+        val byUsage = sort == com.supernova.launcher.ui.DrawerSort.MOST_USED ||
+            sort == com.supernova.launcher.ui.DrawerSort.RECENTLY_USED
+        val inputs = listOf(
+            current.apps, hidden, current.model.appOverrides, sort,
+            launchCounts.takeIf { byUsage }, recentLaunches.takeIf { byUsage },
+            java.util.Locale.getDefault()
+        )
+        visibleAppsMemo?.takeIf { it.matches(inputs) }?.let { return it.value.first }
+        val apps = sortedApps(withOverrides(current.apps.filterNot { it.privateSpace || hiddenKey(it) in hidden }))
+        visibleAppsMemo = Memo(inputs, apps to apps.map(::hiddenKey))
+        return apps
     }
+
+    // visibleApps() with each app's key beside it, by position.
+    private fun visibleAppKeys(): Pair<List<LaunchableApp>, List<String>> {
+        val apps = visibleApps()
+        return visibleAppsMemo?.value?.takeIf { it.first === apps } ?: (apps to apps.map(::hiddenKey))
+    }
+
+    // A drawer tab switch asks for the visible apps once per folder and tab
+    // (#278), and each answer sorted every app with a Collator: kept while
+    // what it is made from is the same objects.
+    private class Memo<T>(val inputs: List<Any?>, val value: T) {
+        fun matches(now: List<Any?>): Boolean =
+            inputs.size == now.size && inputs.indices.all { inputs[it] === now[it] }
+    }
+
+    @Volatile private var visibleAppsMemo: Memo<Pair<List<LaunchableApp>, List<String>>>? = null
+    @Volatile private var drawerGroupsMemo: Memo<List<DrawerGroup>>? = null
 
     // Listed only while the space is unlocked (AppCatalog).
     fun privateApps(): List<LaunchableApp> {
@@ -1178,9 +1244,14 @@ class LauncherViewModel(
 
     // The groups as stored: what is written back, and what a group's own
     // page edits (its members are the ones picked by hand).
-    fun storedDrawerGroups(): List<DrawerGroup> =
-        state.value.prefs.drawerGroups.mapNotNull(DrawerGroup::decode)
+    fun storedDrawerGroups(): List<DrawerGroup> {
+        val stored = listOf(state.value.prefs.drawerGroups)
+        drawerGroupsMemo?.takeIf { it.matches(stored) }?.let { return it.value }
+        val groups = state.value.prefs.drawerGroups.mapNotNull(DrawerGroup::decode)
             .sortedWith(compareBy<DrawerGroup> { it.order }.then(LabelOrder.by { it.name }))
+        drawerGroupsMemo = Memo(stored, groups)
+        return groups
+    }
 
     // The groups as the drawer shows them: with the apps their store
     // categories sort into them added to their members. Never write this
@@ -1318,10 +1389,11 @@ class LauncherViewModel(
         // toggle can no longer silently delete their customization. A group
         // that never chose whether its apps stay in the main list keeps what
         // it did before, which its old type decided.
-        editGroup(group.id) {
-            it.copy(type = type, smart = false, keepInMain = it.keepInMain ?: !leavesMainList(it))
-        }
+        editGroup(group.id) { retyped(it, type) }
     }
+
+    private fun retyped(group: DrawerGroup, type: DrawerGroupType): DrawerGroup =
+        group.copy(type = type, smart = false, keepInMain = group.keepInMain ?: !leavesMainList(group))
 
     // One group changed against what is stored, not against the caller's
     // copy of it; see LauncherPreferences.updateDrawerGroups.
@@ -1381,6 +1453,17 @@ class LauncherViewModel(
         }
     }
 
+    // A drag on the Drawer groups page that may carry a group from one card
+    // to the other (#267): both kinds' order, any group in the other list
+    // retyped as the group page's Show as does. A tab turned folder is no
+    // tab to open the drawer on.
+    fun arrangeGroups(tabs: List<String>, folders: List<String>) {
+        viewModelScope.launch {
+            preferences.updateDrawerGroups { DrawerGroupOrder.arranged(it, tabs, folders, ::retyped) }
+        }
+        if (state.value.prefs.drawerDefaultTab in folders) set(Pref.drawerDefaultTab, "")
+    }
+
     // Undo of a delete on the Drawer groups page: the group back out of
     // before, the list as it stood when it was deleted.
     fun restoreGroup(before: List<DrawerGroup>, id: String) {
@@ -1390,9 +1473,9 @@ class LauncherViewModel(
     }
 
     fun appsInGroup(group: DrawerGroup?): List<LaunchableApp> {
-        val visible = visibleApps()
-        if (group == null) return visible
-        return visible.filter { hiddenKey(it) in group.members }
+        if (group == null) return visibleApps()
+        val (visible, keys) = visibleAppKeys()
+        return visible.filterIndexed { index, _ -> keys[index] in group.members }
     }
 
     // A group's Select apps rows: [apps], and first the drawer folders it

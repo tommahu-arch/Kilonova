@@ -20,6 +20,7 @@ import com.supernova.launcher.databinding.PaneDrawerGroupsBinding
 import com.supernova.launcher.ui.GroupChecklist
 import com.supernova.launcher.ui.ItemIcons
 import com.supernova.launcher.ui.LauncherViewModel
+import com.supernova.launcher.ui.followLauncherAnimations
 
 // The Drawer groups page: the tabs and folders in two cards under a preview
 // of the tab bar, each group opening on a page of its own. It stands in for
@@ -53,9 +54,7 @@ class DrawerGroupsPane(
     // back under the finger.
     private var dragging = false
     private val touchHelper = ItemTouchHelper(
-        GroupReorder(adapter, onDragging = { dragging = it }) { type ->
-            if (type == null) refresh() else viewModel.setGroupOrder(type, adapter.ids(type))
-        }
+        GroupReorder(adapter, onDragging = { dragging = it }) { moved -> if (moved) dropped() else refresh() }
     )
 
     // The group whose page is open (null: the list), by its id.
@@ -110,6 +109,7 @@ class DrawerGroupsPane(
 
     fun refresh() {
         if (!container.isVisible || dragging) return
+        binding.groupsList.followLauncherAnimations(viewModel.state.value.prefs)
         val id = editing
         val group = id?.let { wanted -> viewModel.drawerGroups().firstOrNull { it.id == wanted } }
         val onGroup = binding.groupEdit.root.isVisible
@@ -206,6 +206,11 @@ class DrawerGroupsPane(
     override fun viewMetadata() = StoreMetadataSheet.show(activity, viewModel)
 
     override fun syncStore() = viewModel.syncStoreCategories(force = true)
+
+    // Both cards' order stored, and a group dragged onto the other card
+    // turned into a tab or a folder there (#267).
+    private fun dropped() =
+        viewModel.arrangeGroups(adapter.ids(DrawerGroupType.TAB), adapter.ids(DrawerGroupType.FOLDER))
 
     override fun startDrag(holder: RecyclerView.ViewHolder) = touchHelper.startDrag(holder)
 
