@@ -40,7 +40,7 @@ Gradle 9.7.1, AGP 9.4.1, Kotlin 2.4.20, JVM target 17.
 - `gh` quirks: `gh repo rename` needs `--repo`; `gh repo fork --remote` only from inside a clone.
 
 ## Release process
-Releases: https://github.com/tommahu-arch/Kilonova/releases (Kilonova-<version>.apk). Current: v0.0.10 (v0.0.11 built, awaiting go-ahead).
+Releases: https://github.com/tommahu-arch/Kilonova/releases (Kilonova-<version>.apk). Current: v0.0.11.
 Upstream's own tags (v0.1.7 ... v0.2.1) are in the repo; Kilonova's start at v0.0.1 and must not reuse them.
 - Version lives in `app/build.gradle.kts`: `versionName` (0.0.N) and `versionCode`. versionCode must only go up
   (0.0.1 = 1, 0.0.2 = 22, 0.0.3 = 23, 0.0.4 = 24, 0.0.5 = 25, 0.0.6 = 26, 0.0.7 = 27, 0.0.8 = 28, 0.0.9 = 29, 0.0.10 = 30, 0.0.11 = 31). Upstream's What's new files `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
@@ -123,7 +123,7 @@ Decisions were made under Thomas Mahu's authority; do not change scope without a
 - **Releases.** v0.0.1 (versionCode 1): first release, R3, R4, R5, drawer icons. v0.0.2 (versionCode 22): folder tap action
   and What's new text. v0.0.3 (versionCode 23): search box in the action picker (`ui/ActionPickerSheet.kt`: filters the
   showing tab, text kept across tabs; also in swipe and gesture pickers) and debug builds signed with the release key
-  (from 0.0.4 on, debug and release are one package). v0.0.4 (versionCode 24): True black, Lock dock, Custom color. v0.0.5 (versionCode 25): Swipe mark color. v0.0.6 (versionCode 26): store categories, Backup location. v0.0.7 (versionCode 27): upstream 0.2.2 and 0.2.3 merged. v0.0.8 (versionCode 28): fix for store categories lost after 0.0.7. v0.0.9 (versionCode 29): apps metadata view, drawer Add group button. v0.0.10 (versionCode 30): upstream Supernova 0.2.4 and later merged (nested drawer folders, any accent colour, more search engines, ...), drawer "Move to..." in the app long-press menu (`LauncherActivity.showMoveToGroup`, `LauncherViewModel.moveAppToGroup`), PRIVACY.md rewritten for the store lookup. v0.0.11 (versionCode 31): upstream Supernova 0.2.5 to 0.2.8 merged (performance, Return to default page, 5 dock pages, group drag between Tabs and Folders; upstream's colour picker and action-picker search replace ours). v0.0.1 to v0.0.10 are published on GitHub,
+  (from 0.0.4 on, debug and release are one package). v0.0.4 (versionCode 24): True black, Lock dock, Custom color. v0.0.5 (versionCode 25): Swipe mark color. v0.0.6 (versionCode 26): store categories, Backup location. v0.0.7 (versionCode 27): upstream 0.2.2 and 0.2.3 merged. v0.0.8 (versionCode 28): fix for store categories lost after 0.0.7. v0.0.9 (versionCode 29): apps metadata view, drawer Add group button. v0.0.10 (versionCode 30): upstream Supernova 0.2.4 and later merged (nested drawer folders, any accent colour, more search engines, ...), drawer "Move to..." in the app long-press menu (`LauncherActivity.showMoveToGroup`, `LauncherViewModel.moveAppToGroup`), PRIVACY.md rewritten for the store lookup. v0.0.11 (versionCode 31): upstream Supernova 0.2.5 to 0.2.8 merged (performance, Return to default page, 5 dock pages, group drag between Tabs and Folders; upstream's colour picker and action-picker search replace ours). All published on GitHub,
   signed with the same key.
 
 ## Gotchas learned
