@@ -1,0 +1,11 @@
+Upstream Supernova 0.2.5 to 0.2.8 merged in.
+
+- Much faster: icons and the app list kept on disk, widgets and badges read off the main thread
+- Return to default page: turn it off and Home keeps your page
+- Settings previews follow every setting on their page
+- Up to 5 dock pages
+- Drag drawer groups between Tabs and Folders; drawer folders pick their tabs from the edit page
+- Navigation bar button colour, icon packs that follow light and dark
+- Uninstalling an app dissolves its sparse folder
+- Fixed widgets staying tilted after a drag
+- Settings recover from the newest automatic backup if they can't be read

@@ -1436,9 +1436,9 @@ class LiveDragController(
         // A widget let go over the dock: findDragTarget keeps it off the dock,
         // and the fly-back alone didn't say why.
         val overDock = binding.dockBar.isShown && binding.dockBar.screenRect().contains(rawX.toInt(), rawY.toInt())
-        if (isWidgetPayload(payload) && overDock) {
-            android.widget.Toast.makeText(context, R.string.widget_not_in_dock, android.widget.Toast.LENGTH_SHORT)
-                .show()
+        if (overDock && !dockable(payload)) {
+            val why = if (isWidgetPayload(payload)) R.string.widget_not_in_dock else R.string.shortcut_not_in_dock
+            android.widget.Toast.makeText(context, why, android.widget.Toast.LENGTH_SHORT).show()
         }
         // Nowhere to land: an item flies back to where it came from; a drawer
         // app or a picker widget has no home on screen and just fades. An app
@@ -1468,14 +1468,23 @@ class LiveDragController(
 
     private fun markSettling(payload: DragPayload) {
         settlingItemId = (payload as? DragPayload.ExistingItem)?.itemId
+        settleRebound = false
     }
+
+    // Whether a rebind has placed the settling item since its drop.
+    private var settleRebound = false
 
     // An item still settling from its drop, or still being dragged: a
     // rebind that lands meanwhile adds its view hidden. Mid-drag one does
     // land when edit mode closes with infinite scroll on (every page is
     // rebuilt), and it put a copy of the dragged item back at its origin.
-    fun isSettling(itemId: String): Boolean =
-        itemId == settlingItemId || (activeDragPayload as? DragPayload.ExistingItem)?.itemId == itemId
+    fun isSettling(itemId: String): Boolean {
+        if (itemId == settlingItemId) {
+            settleRebound = true
+            return true
+        }
+        return (activeDragPayload as? DragPayload.ExistingItem)?.itemId == itemId
+    }
 
     // The dragged item's view as it is now. A rebind mid-drag replaces it,
     // and the old view, detached, never shows again: a missed drop faded at
@@ -1639,23 +1648,29 @@ class LiveDragController(
         val dragged = activeDragPayload != null
         val sourcePage = dragSourcePage
         dragSourcePage = null
+        val source = currentDragSource(activeDragPayload)
         onDragEnded(accepted, flewBack)
-        revealSettled()
+        revealSettled(source)
         if (dragged) host.onDragFinished(sourcePage)
     }
 
     // The settled item's rebound view (workspace child or dock slot child)
     // was added hidden; show it now that the picture has arrived.
-    private fun revealSettled() {
+    // The view the item was picked up from stays hidden while the drop's
+    // rebind hasn't landed: it still stands at the old spot. With
+    // animations off the settle ends at once, before the model write, and
+    // showing it flashed the icon at its old cell (#297). The rebind then
+    // adds the item visible, settlingItemId being clear.
+    private fun revealSettled(source: View?) {
         val id = settlingItemId ?: return
         settlingItemId = null
-        forEachWorkspaceIcon { _, view -> if (view.getTag(R.id.tag_item_id) == id) view.alpha = 1f }
+        fun reveal(view: View) {
+            if (view.getTag(R.id.tag_item_id) == id && (view !== source || settleRebound)) view.alpha = 1f
+        }
+        forEachWorkspaceIcon { _, view -> reveal(view) }
         for (i in 0 until binding.dockBar.childCount) {
             val slot = binding.dockBar.getChildAt(i) as? ViewGroup ?: continue
-            for (c in 0 until slot.childCount) {
-                val child = slot.getChildAt(c)
-                if (child.getTag(R.id.tag_item_id) == id) child.alpha = 1f
-            }
+            for (c in 0 until slot.childCount) reveal(slot.getChildAt(c))
         }
     }
 
@@ -1685,9 +1700,16 @@ class LiveDragController(
         }
     }
 
+    // A cancelled animator stays at its last frame, so every view it rocked
+    // is straightened here, not just those on the pages showing now: a
+    // widget's view is kept and reused across rebinds, and one off the
+    // showing pages when the drag ended kept its tilt until a restart (#316).
     private fun stopIconWiggle() {
         if (wiggleAnimators.isEmpty()) return
-        wiggleAnimators.forEach { it.cancel() }
+        wiggleAnimators.forEach { animator ->
+            animator.cancel()
+            ((animator as? android.animation.ObjectAnimator)?.target as? View)?.rotation = 0f
+        }
         wiggleAnimators.clear()
         forEachWorkspaceIcon { _, view -> view.rotation = 0f }
     }

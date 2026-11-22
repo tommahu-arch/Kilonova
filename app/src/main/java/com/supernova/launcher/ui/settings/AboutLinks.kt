@@ -21,18 +21,37 @@ object AboutLinks {
         }
     }
 
-    // A new GitHub issue, its body started with what a report needs first:
-    // the app's version and the phone's Android version and model. The
-    // person sees all of it before anything is sent.
+    // A new GitHub issue on the bug report form, its version and device
+    // fields filled in (the form reads field values from the query by their
+    // ids in .github/ISSUE_TEMPLATE/bug_report.yml). The person sees all of
+    // it before anything is sent.
     fun newIssueUrl(context: Context): String {
-        val details = context.getString(
-            R.string.about_report_issue_body,
-            SupernovaApp.versionLabel(context).orEmpty(),
-            Build.VERSION.RELEASE,
-            Build.VERSION.SDK_INT,
-            "${Build.MANUFACTURER} ${Build.MODEL}"
-        )
-        return context.getString(R.string.about_source_url) + "/issues/new?body=" + android.net.Uri.encode(details)
+        val version = SupernovaApp.versionLabel(context).orEmpty()
+        val device = "${Build.MANUFACTURER} ${Build.MODEL}, " +
+            "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})"
+        return context.getString(R.string.about_source_url) + "/issues/new?template=bug_report.yml" +
+            "&version=" + android.net.Uri.encode(version) +
+            "&device=" + android.net.Uri.encode(device)
+    }
+
+    // One line a report needs: Supernova's version, Android's version and
+    // the phone's maker and model.
+    fun deviceDetails(context: Context): String = context.getString(
+        R.string.about_device_details,
+        SupernovaApp.versionLabel(context).orEmpty(),
+        Build.VERSION.RELEASE,
+        Build.VERSION.SDK_INT,
+        "${Build.MANUFACTURER} ${Build.MODEL}"
+    )
+
+    // The version row's long press (#279), for a report started on GitHub
+    // rather than from Report an issue. Android 13+ confirms a copy itself.
+    fun copyDeviceDetails(context: Context) {
+        context.getSystemService(android.content.ClipboardManager::class.java)
+            ?.setPrimaryClip(android.content.ClipData.newPlainText("Supernova", deviceDetails(context)))
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            Toast.makeText(context, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show()
+        }
     }
 
     // This version's release notes, or the newest the app carries (a debug

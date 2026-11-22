@@ -1,7 +1,8 @@
 package com.supernova.launcher.data
 
 // The Drawer groups page's edits of the stored list as a whole: a drag that
-// reorders the tabs or the folders, and a deleted group brought back.
+// reorders the tabs or the folders (or carries a group from one to the
+// other), and a deleted group brought back.
 object DrawerGroupOrder {
 
     // The order every surface shows groups in: by their stored order, then
@@ -22,6 +23,25 @@ object DrawerGroupOrder {
         return sorted
             .map { if (it.type == type) queue.removeFirst() else it }
             .mapIndexed { position, group -> group.copy(order = position) }
+    }
+
+    // A drag across the Drawer groups page's two cards (#267): the tabs and
+    // the folders each in the order their ids give, a group dragged into the
+    // other card changed by retype on the way (LauncherViewModel.retyped).
+    fun arranged(
+        groups: List<DrawerGroup>,
+        tabs: List<String>,
+        folders: List<String>,
+        retype: (DrawerGroup, DrawerGroupType) -> DrawerGroup
+    ): List<DrawerGroup> {
+        val retyped = groups.map {
+            when {
+                it.id in tabs && it.type != DrawerGroupType.TAB -> retype(it, DrawerGroupType.TAB)
+                it.id in folders && it.type != DrawerGroupType.FOLDER -> retype(it, DrawerGroupType.FOLDER)
+                else -> it
+            }
+        }
+        return reordered(reordered(retyped, DrawerGroupType.TAB, tabs), DrawerGroupType.FOLDER, folders)
     }
 
     // A deleted group put back: the group as it was in before, and its place

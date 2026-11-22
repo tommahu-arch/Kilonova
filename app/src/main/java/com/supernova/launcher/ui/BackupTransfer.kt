@@ -78,7 +78,19 @@ class BackupTransfer(
 
     fun pickFolder() = folderLauncher.launch(null)
 
-    fun pickExportFile() = exportLauncher.launch("kilonova-backup-${System.currentTimeMillis()}.json")
+    fun pickExportFile() = exportLauncher.launch(exportFileName())
+
+    // Kilonova_v0.2.5_2026-11-20_19-05-42.json: the version that wrote it
+    // and a readable local time, where it ended in a raw millisecond count
+    // (#296). No colons: some file providers refuse them.
+    private fun exportFileName(): String {
+        val version = runCatching {
+            activity.packageManager.getPackageInfo(activity.packageName, 0).versionName
+        }.getOrNull().orEmpty()
+        val stamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.ROOT)
+            .format(java.util.Date())
+        return if (version.isEmpty()) "Kilonova_$stamp.json" else "Kilonova_${version}_$stamp.json"
+    }
 
     // Any file: another launcher's backup has an extension of its own, which
     // the picker knows no type for.

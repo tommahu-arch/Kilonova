@@ -503,7 +503,7 @@ class SettingsAdapter(private val previews: PreviewController) : RecyclerView.Ad
             if (blocked != null) {
                 // Greyed: the reason stands in for the value, under the title.
                 binding.settingSubtitle.setText(blocked)
-                binding.settingSubtitle.setTextColor(binding.root.context.getColor(R.color.textSecondary))
+                binding.settingSubtitle.setTextColor(binding.root.context.getColor(R.color.settingsTextSecondary))
                 binding.settingSubtitle.visibility = View.VISIBLE
                 binding.groupRowValue.visibility = View.GONE
                 binding.groupRowSwatch.visibility = View.GONE
@@ -525,6 +525,17 @@ class SettingsAdapter(private val previews: PreviewController) : RecyclerView.Ad
             } else {
                 binding.root.setOnClickListener(null)
                 binding.root.isClickable = false
+            }
+            val longPress = item.onLongClick
+            if (longPress != null) {
+                binding.root.setOnLongClickListener {
+                    it.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                    longPress()
+                    true
+                }
+            } else {
+                binding.root.setOnLongClickListener(null)
+                binding.root.isLongClickable = false
             }
         }
 
@@ -554,7 +565,7 @@ class SettingsAdapter(private val previews: PreviewController) : RecyclerView.Ad
             val context = binding.root.context
             binding.settingSubtitle.setTextColor(
                 context.getColor(
-                    if (item.look.positive?.invoke() == true) R.color.settingsOk else R.color.textSecondary
+                    if (item.look.positive?.invoke() == true) R.color.settingsOk else R.color.settingsTextSecondary
                 )
             )
             val swatch = item.look.swatch?.invoke(prefs)
