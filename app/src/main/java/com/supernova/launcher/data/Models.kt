@@ -330,6 +330,10 @@ data class LauncherPrefs(
     // ON additionally bakes a plate behind raw legacy icons
     // ("Reshape legacy icons"), on out of the box.
     val reshapeLegacy: String = "ON",
+    // Normalize icon size (#332): with Reshape legacy Off, legacy icons and
+    // a pack's art shrink to the Material icon guidelines. On out of the
+    // box, as in the reference.
+    val iconNormalization: Boolean = true,
     // On by default. The shadow falls outside the icon, which keeps
     // its size (ShadowedIconDrawable).
     val iconShadow: Boolean = true,
@@ -423,6 +427,10 @@ data class LauncherPrefs(
     // broken word ("OpenWeathe" over "r"). Per-surface overrides in
     // labelConfig can still allow two lines.
     val labelSingleLine: Boolean = true,
+    // With two-line labels, drawer and folder rows keep room for a second
+    // line even when none of their labels wraps, so every row of icons is
+    // spaced the same (#347). Off by default.
+    val labelEvenRows: Boolean = false,
     val dockInfiniteScroll: Boolean = false,
     // Lock dock: nothing in the dock, or in a folder in it, is added, moved or removed.
     val dockLocked: Boolean = false,
@@ -465,6 +473,9 @@ data class LauncherPrefs(
     // Sets IME_FLAG_NO_PERSONALIZED_LEARNING on the search field. On by
     // default.
     val searchPrivateKeyboard: Boolean = true,
+    // The "Search" text in the search window's empty field (#324), as the
+    // drawer field's own switch. On by default.
+    val searchWindowHint: Boolean = true,
     // Long-pressing a recent search offers to keep it as a home-screen
     // shortcut that re-runs the query.
     val searchQueryShortcuts: Boolean = true,

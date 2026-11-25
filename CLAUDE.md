@@ -40,10 +40,10 @@ Gradle 9.7.1, AGP 9.4.1, Kotlin 2.4.20, JVM target 17.
 - `gh` quirks: `gh repo rename` needs `--repo`; `gh repo fork --remote` only from inside a clone.
 
 ## Release process
-Releases: https://github.com/tommahu-arch/Kilonova/releases (Kilonova-<version>.apk). Current: v0.0.11.
+Releases: https://github.com/tommahu-arch/Kilonova/releases (Kilonova-<version>.apk). Current: v0.0.11 (0.0.12 merged upstream 0.2.9, in testing).
 Upstream's own tags (v0.1.7 ... v0.2.1) are in the repo; Kilonova's start at v0.0.1 and must not reuse them.
 - Version lives in `app/build.gradle.kts`: `versionName` (0.0.N) and `versionCode`. versionCode must only go up
-  (0.0.1 = 1, 0.0.2 = 22, 0.0.3 = 23, 0.0.4 = 24, 0.0.5 = 25, 0.0.6 = 26, 0.0.7 = 27, 0.0.8 = 28, 0.0.9 = 29, 0.0.10 = 30, 0.0.11 = 31). Upstream's What's new files `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
+  (0.0.1 = 1, 0.0.2 = 22, 0.0.3 = 23, 0.0.4 = 24, 0.0.5 = 25, 0.0.6 = 26, 0.0.7 = 27, 0.0.8 = 28, 0.0.9 = 29, 0.0.10 = 30, 0.0.11 = 31, 0.0.12 = 32). Upstream's What's new files `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`
   already cover 2..21, so Kilonova's codes start at 22 and skip those; add `<versionCode>.txt` for every release
   (it ships in the APK as `assets/<versionCode>.txt`; a missing file leaves About > What's new empty).
 - Signing: release key `~/.android/kilonova-release.jks`, passwords in the gitignored `keystore.properties` at the
