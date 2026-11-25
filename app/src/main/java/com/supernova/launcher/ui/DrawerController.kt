@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.os.SystemClock
+import android.util.TypedValue
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -27,6 +28,7 @@ import com.supernova.launcher.search.AppSearchProvider
 import com.supernova.launcher.databinding.ActivityLauncherBinding
 import com.supernova.launcher.ui.theme.Styles
 import com.supernova.launcher.ui.theme.SurfaceId
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // Owns the app drawer: sheet behavior, adapter, tabs, style, search, and the
@@ -162,9 +164,9 @@ class DrawerController(
     private var shownTabIndex = -1
     // +1 or -1 while a swipe's tab change is being applied, else 0 (a tap).
     private var swipeDirection = 0
-    // A swipe's lift that changed tab: how far the list was from where the
-    // next page would sit, and the finger's speed (TabSwipeDrag).
-    private var dragSettle: Pair<Float, Float>? = null
+    // Set while a swipe's landing picks the tab: the list is already where
+    // the new tab slid in, so it changes in place (TabSwipeDrag).
+    private var swipeLanding = false
     // Set while rebuildTabs picks the tab: no change the user made, no slide.
     private var rebuildingTabs = false
     private var renderedTabsKey: String? = null
@@ -201,24 +203,210 @@ class DrawerController(
     // A sideways swipe on the list moves to the neighbouring group tab (not
     // for the paged grid, which uses horizontal scroll for its pages).
     private fun attachTabSwipe() {
+        // From the first layout on, so the All tab's is known before the
+        // first swipe. The header rides in the list in a holder of its own,
+        // which is what the list stacks.
+        listHeader.addOnLayoutChangeListener { header, _, _, _, _, _, _, _, _ ->
+            val holder = header.parent as? View
+            if (holder != null && holder.parent === binding.drawerRecycler) recordHeaderHeight(holder.height)
+        }
         binding.drawerRecycler.addOnItemTouchListener(
             TabSwipeDrag(
                 binding.drawerListContainer,
-                swipeable = ::tabSwipeable,
-                hasTab = { delta -> adjacentTab(delta) != null },
-                onCommit = { delta, remaining, velocity ->
-                    dragSettle = remaining to velocity
-                    selectAdjacentTab(delta)
-                    // No change after all (the bar changed under the finger).
-                    if (dragSettle != null) {
-                        dragSettle = null
+                object : TabSwipeDrag.Host {
+                    override fun swipeable() = tabSwipeable()
+
+                    override fun hasTab(delta: Int) = adjacentTab(delta) != null
+
+                    override fun onOffset(offset: Float) = followTabSwipe(offset)
+
+                    override fun onLanded(delta: Int) {
+                        swipeLanding = true
+                        selectAdjacentTab(delta)
+                        swipeLanding = false
+                        // In place either way, also with no change after all
+                        // (the bar changed under the finger).
                         slideInTab(0)
                     }
-                },
-                animate = { Animations.enabled(viewModel.state.value.prefs) },
-                onMoving = { moving -> showFastScroller(!moving) }
+
+                    override fun animate() = Animations.enabled(viewModel.state.value.prefs)
+
+                    override fun onMoving(moving: Boolean) {
+                        if (moving) {
+                            // A tap's slide-in cut short leaves its fade and
+                            // layer, which would clip the neighbour beside it.
+                            binding.drawerListContainer.alpha = 1f
+                            binding.drawerListContainer.setLayerType(View.LAYER_TYPE_NONE, null)
+                        }
+                        showFastScroller(!moving)
+                    }
+                }
             )
         )
+    }
+
+    // The neighbouring tab's list, beside the drawer's while a swipe moves
+    // it, so the tab comes in with the finger the way a home page does. A
+    // list of its own in the list's container, a width to that side; the
+    // sheet stops clipping the container meanwhile, so it shows there.
+    private var peekList: EdgeFadeRecyclerView? = null
+    private var peekAdapter: AppDrawerAdapter? = null
+    private var peekIndex = -1
+    // The list header's height (top row, sort strip) on the All tab and on
+    // the others, as last laid out: the neighbour's list starts that far
+    // down, so its apps sit where they will once the tab lands.
+    private var allHeaderPx = 0
+    private var tabHeaderPx = 0
+
+    private fun followTabSwipe(offset: Float) {
+        val container = binding.drawerListContainer
+        val delta = if (offset < 0) 1 else -1
+        val next = if (offset == 0f) null else adjacentTab(delta)
+        if (next == null) {
+            hideTabPeek()
+            return
+        }
+        val peek = showTabPeek(next)
+        peek.translationX = delta * container.width.toFloat()
+        moveTabIndicator(next, abs(offset) / container.width.coerceAtLeast(1))
+    }
+
+    private fun showTabPeek(index: Int): EdgeFadeRecyclerView {
+        val peek = peekList ?: newTabPeek()
+        binding.drawerSheet.clipChildren = false
+        if (index != peekIndex || peek.visibility != View.VISIBLE) {
+            peekIndex = index
+            bindTabPeek(peek, binding.drawerTabs.getTabAt(index)?.tag)
+            peek.visibility = View.VISIBLE
+        }
+        return peek
+    }
+
+    private fun hideTabPeek() {
+        val peek = peekList ?: return
+        if (peek.visibility == View.GONE) return
+        peek.visibility = View.GONE
+        peekIndex = -1
+        binding.drawerSheet.clipChildren = true
+        // The bar's indicator back under the selected tab.
+        val tabs = binding.drawerTabs
+        if (tabs.selectedTabPosition >= 0) tabs.setScrollPosition(tabs.selectedTabPosition, 0f, false)
+    }
+
+    private fun newTabPeek(): EdgeFadeRecyclerView {
+        val recycler = binding.drawerRecycler
+        val peek = EdgeFadeRecyclerView(context).apply {
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            clipToPadding = false
+            itemAnimator = null
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isVerticalScrollBarEnabled = false
+            // Only ever looked at: the touch stays with the drawer's list.
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            visibility = View.GONE
+        }
+        val adapter = newCellAdapter()
+        peek.adapter = adapter
+        // Spare tiles made while the drawer is idle, so the neighbour doesn't
+        // inflate a screenful on a swipe's first frame. A pool of its own:
+        // a tile belongs to the adapter that made it.
+        val columns = columnCount(viewModel.state.value.prefs)
+        adapter.sizePool(peek.recycledViewPool, columns)
+        adapter.prefillPool(peek, columns)
+        binding.drawerListContainer.addView(peek, binding.drawerListContainer.indexOfChild(recycler) + 1)
+        peekList = peek
+        peekAdapter = adapter
+        return peek
+    }
+
+    // The All tab's header as it last showed, drawn as the neighbour's: the
+    // header is one view, and while another tab shows its top row is gone.
+    private var allHeaderSnapshot: android.graphics.Bitmap? = null
+    private val peekHeader by lazy {
+        android.widget.ImageView(context).apply {
+            scaleType = android.widget.ImageView.ScaleType.MATRIX
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+    }
+
+    // Taken as the All tab is left; kept as it was when it had scrolled
+    // out of sight.
+    private fun snapshotAllHeader() {
+        val holder = listHeader.parent as? View ?: return
+        if (holder.parent !== binding.drawerRecycler || holder.width <= 0 || holder.height <= 0) return
+        val reuse = allHeaderSnapshot?.takeIf { it.width == holder.width && it.height == holder.height }
+        val bitmap = reuse ?: android.graphics.Bitmap.createBitmap(
+            holder.width, holder.height, android.graphics.Bitmap.Config.ARGB_8888
+        )
+        bitmap.eraseColor(android.graphics.Color.TRANSPARENT)
+        holder.draw(android.graphics.Canvas(bitmap))
+        allHeaderSnapshot = bitmap
+    }
+
+    private fun recordHeaderHeight(px: Int) {
+        if (selectedTab == null) allHeaderPx = px else tabHeaderPx = px
+    }
+
+    // The tab's apps, laid out as the drawer's list lays them out, from the
+    // top, as a tab picked shows them.
+    private fun bindTabPeek(peek: EdgeFadeRecyclerView, tab: Any?) {
+        val prefs = viewModel.state.value.prefs
+        val list = binding.drawerRecycler
+        val adapter = peekAdapter ?: return
+        val columns = if (currentStyle == DrawerStyle.VERTICAL_GRID) columnCount(prefs) else 1
+        // The All tab's header from its snapshot, or room for it.
+        val snapshot = allHeaderSnapshot.takeIf { tab == null && allHeaderPx > 0 && it?.height == allHeaderPx }
+        if (snapshot != null) {
+            peekHeader.setImageBitmap(snapshot)
+            // The holder it rides in is a FrameLayout, which measures with
+            // margins.
+            peekHeader.layoutParams = android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, snapshot.height
+            )
+        }
+        adapter.setHeader(if (snapshot != null) peekHeader else null)
+        val header = when {
+            snapshot != null -> 0
+            tab == null -> allHeaderPx
+            else -> tabHeaderPx
+        }
+        peek.setPadding(list.paddingLeft, list.paddingTop + header, list.paddingRight, list.paddingBottom)
+        peek.fadeTop = list.fadeTop
+        peek.fadeBottom = list.fadeBottom
+        adapter.displayMode = this.adapter.displayMode
+        adapter.tileWidthPx = this.adapter.tileWidthPx
+        adapter.tileHeightPx = this.adapter.tileHeightPx
+        adapter.tileContentPx = this.adapter.tileContentPx
+        adapter.tileCompactPx = this.adapter.tileCompactPx
+        lastDisplay?.let { adapter.setDisplay(it.first, it.second, it.third) }
+        val manager = peek.layoutManager as? DrawerLayoutManager
+        if (manager == null || manager.spanCount != columns) {
+            peek.layoutManager = DrawerLayoutManager(context, columns).apply {
+                spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+                    override fun getSpanSize(position: Int): Int = adapter.spanSizeAt(position, spanCount)
+                }
+            }
+        }
+        val content = tabContent(tab, prefs)
+        adapter.emptyState = content.emptyState
+        adapter.submit(content.apps, content.folders, prefs.drawerFoldersFirst, listOrder(prefs), replace = true)
+        peek.scrollToPosition(0)
+    }
+
+    // The bar's indicator slides with the swipe, as a pager's tabs do, and
+    // stays put for a wrap past the end (Loop tabs).
+    private fun moveTabIndicator(next: Int, fraction: Float) {
+        val tabs = binding.drawerTabs
+        val current = tabs.selectedTabPosition
+        if (current < 0 || abs(next - current) != 1) return
+        val f = fraction.coerceIn(0f, 1f)
+        if (next > current) {
+            tabs.setScrollPosition(current, f, false)
+        } else {
+            tabs.setScrollPosition(next, 1f - f, false)
+        }
     }
 
     // The tab that way from the selected one, or null at an end with Loop
@@ -249,21 +437,20 @@ class DrawerController(
     // an earlier one. Not while the drawer is still opening, a query
     // filters the list, or Supernova's animations are off.
     //
-    // After a swipe (TabSwipeDrag) the new tab's list comes in from where
-    // the next page would lie, the rest of the width away, in the pager's
-    // settle time for the finger's speed.
+    // A swipe's tab (TabSwipeDrag) has already slid in beside the list: the
+    // list takes its place and the neighbour goes.
     private fun slideInTab(direction: Int) {
         val prefs = viewModel.state.value.prefs
         val list = binding.drawerListContainer
-        val drag = dragSettle
-        dragSettle = null
         list.animate().cancel()
         val filtering = searchingExternally || binding.drawerSearch.text?.isNotEmpty() == true
         val still = !Animations.enabled(prefs) || progress < 1f || list.width == 0
-        if (still || filtering || direction == 0) {
+        val inPlace = swipeLanding || direction == 0
+        if (inPlace || still || filtering) {
             list.translationX = 0f
             list.alpha = 1f
             list.setLayerType(View.LAYER_TYPE_NONE, null)
+            hideTabPeek()
             showFastScroller(true)
             return
         }
@@ -271,21 +458,11 @@ class DrawerController(
         // A layer for the fade: without one, every frame drew the whole list
         // offscreen (about 20ms a frame on the Samsung).
         list.setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        val animator = if (drag != null) {
-            val (remaining, velocity) = drag
-            list.translationX = direction * remaining
-            list.alpha = TAB_DRAG_START_ALPHA
-            val ms = PageFlingSettle.durationMs(
-                remaining.toInt(), list.width, velocity, list.resources.displayMetrics.density
-            )
-            list.animate().setDuration(ms.toLong()).setInterpolator(PageFlingSettle.QuinticOut)
-        } else {
-            list.translationX = direction * list.width * TAB_SLIDE_FRACTION
-            list.alpha = 0f
-            list.animate().setDuration(Animations.duration(prefs, TAB_SLIDE_MS))
-                .setInterpolator(android.view.animation.DecelerateInterpolator())
-        }
-        animator.translationX(0f).alpha(1f)
+        list.translationX = direction * list.width * TAB_SLIDE_FRACTION
+        list.alpha = 0f
+        list.animate().setDuration(Animations.duration(prefs, TAB_SLIDE_MS))
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .translationX(0f).alpha(1f)
             .withEndAction {
                 list.setLayerType(View.LAYER_TYPE_NONE, null)
                 showFastScroller(true)
@@ -314,6 +491,80 @@ class DrawerController(
 
     private fun attachPullToSearch() {
         binding.drawerRecycler.addOnItemTouchListener(newPullToSearchListener())
+    }
+
+    // The paged style's swipe down to close. The sheet behavior closes the
+    // other styles through their list's nested scrolls, but a page doesn't
+    // scroll, and the behavior's own grab never finds the sheet under the
+    // finger (the full-screen drag layer sits above it), so a swipe down on
+    // the pages left the drawer open. Once a drag reads as down, the page
+    // hands it to the sheet as a close pull (beginClosePull).
+    // Lint can't follow the tracker into finish(), which recycles it on
+    // every lift and cancel.
+    @android.annotation.SuppressLint("Recycle")
+    private fun newPageSwipeClose(): RecyclerView.OnItemTouchListener {
+        // Under the list's own slop: the page grid reports a vertical scroll
+        // even with nothing to scroll, and at its slop it takes the stream.
+        val slop = android.view.ViewConfiguration.get(context).scaledTouchSlop / 2
+        var downX = 0f
+        var downY = 0f
+        var pulling = false
+        var velocity: android.view.VelocityTracker? = null
+        // In screen coordinates: the page rides down with the sheet, so in
+        // its own the finger hardly moves and every lift read as no fling.
+        fun track(e: MotionEvent) {
+            val screen = MotionEvent.obtain(e)
+            screen.setLocation(e.rawX, e.rawY)
+            velocity?.addMovement(screen)
+            screen.recycle()
+        }
+        fun finish(rv: RecyclerView, cancelled: Boolean) {
+            val tracker = velocity
+            tracker?.computeCurrentVelocity(VELOCITY_UNITS_MS)
+            if (pulling) endPull(tracker?.yVelocity ?: 0f, cancelled)
+            pulling = false
+            tracker?.recycle()
+            velocity = null
+            rv.parent?.requestDisallowInterceptTouchEvent(false)
+        }
+        return object : RecyclerView.OnItemTouchListener {
+            override fun onInterceptTouchEvent(rv: RecyclerView, e: MotionEvent): Boolean {
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downX = e.rawX
+                        downY = e.rawY
+                        pulling = false
+                        velocity?.recycle()
+                        velocity = android.view.VelocityTracker.obtain()
+                        track(e)
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        track(e)
+                        val dx = e.rawX - downX
+                        val dy = e.rawY - downY
+                        if (dy > slop && dy > abs(dx) && beginClosePull()) {
+                            pulling = true
+                            rv.parent?.requestDisallowInterceptTouchEvent(true)
+                            pullTo(-dy)
+                            return true
+                        }
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> finish(rv, cancelled = false)
+                }
+                return false
+            }
+
+            override fun onTouchEvent(rv: RecyclerView, e: MotionEvent) {
+                track(e)
+                when (e.actionMasked) {
+                    MotionEvent.ACTION_MOVE -> pullTo(-(e.rawY - downY))
+                    MotionEvent.ACTION_UP -> finish(rv, cancelled = false)
+                    MotionEvent.ACTION_CANCEL -> finish(rv, cancelled = true)
+                }
+            }
+
+            override fun onRequestDisallowInterceptTouchEvent(disallowIntercept: Boolean) = Unit
+        }
     }
 
     // Built per list: the paged style's pages are their own RecyclerViews, and
@@ -456,7 +707,8 @@ class DrawerController(
         // page cut in pageRows both measure inside it).
         val prefs = viewModel.state.value.prefs
         val sidePad = context.dp(prefs.drawerPaddingH)
-        val endPad = context.dp(prefs.drawerPaddingV)
+        val (topPad, bottomPad) = placeTabsInPadding(context.dp(prefs.drawerPaddingV))
+        val sheet = binding.drawerSheet
         binding.drawerSheet.setPadding(barInsets.left, barInsets.top + liftedRow, barInsets.right, keyboardInset)
         // The results pad past a keyboard that covers them (the field at the
         // top): a list that nearly fit couldn't be dragged, so the drag that
@@ -473,12 +725,12 @@ class DrawerController(
         binding.drawerAddGroup.visibility = if (addGroup && !searchingExternally) View.VISIBLE else View.GONE
         // clipToPadding is false, so the list scrolls under the navigation bar
         // and comes to rest above it.
-        binding.drawerRecycler.setPadding(sidePad, endPad, sidePad, context.dp(18) + listInset + endPad + addRoom)
+        binding.drawerRecycler.setPadding(sidePad, topPad, sidePad, context.dp(18) + listInset + bottomPad + addRoom)
         // A page doesn't scroll, so the paged style keeps its pages where the
         // list comes to rest, and cuts them to fit there (syncPages). The
         // sides pad each page instead (PageHolder), so a page effect still
         // runs edge to edge.
-        binding.drawerPager.setPadding(0, endPad, 0, context.dp(18) + listInset + endPad + addRoom)
+        binding.drawerPager.setPadding(0, topPad, 0, context.dp(18) + listInset + bottomPad + addRoom)
         // Rows fade out towards both ends of the list. The bottom fade takes
         // in the navigation bar the list scrolls under, so a row is all but
         // gone by the time it is behind the buttons.
@@ -486,7 +738,7 @@ class DrawerController(
             list.fadeTop = context.dp(LIST_FADE_DP)
             list.fadeBottom = context.dp(LIST_FADE_DP) + listInset
         }
-        binding.drawerFastScroller.setPadding(0, context.dp(12) + endPad, 0, context.dp(12) + listInset + endPad)
+        binding.drawerFastScroller.setPadding(0, context.dp(12) + topPad, 0, context.dp(12) + listInset + bottomPad)
         // A 44dp field, on the line the old 52dp one was centred on.
         binding.drawerSearchRow.setPadding(
             context.dp(16),
@@ -494,9 +746,29 @@ class DrawerController(
             context.dp(16),
             context.dp(10) + if (rowOnNavBar) barInsets.bottom else 0
         )
-        val tabsAtBottom = binding.drawerSheet.indexOfChild(binding.drawerTabs) ==
-            binding.drawerSheet.childCount - 1
+        val tabsAtBottom = sheet.indexOfChild(binding.drawerTabs) == sheet.childCount - 1
         binding.drawerTabs.setPadding(0, 0, 0, if (tabsAtBottom) barInsets.bottom else 0)
+    }
+
+    // A tab bar at either end moves in with the apps (#353): the vertical
+    // padding sits outside the bar, between it and the search row or the
+    // screen edge, and the list drops its own padding on that side. Returns
+    // the list's top and bottom padding.
+    private fun placeTabsInPadding(endPad: Int): Pair<Int, Int> {
+        val tabs = binding.drawerTabs
+        val sheet = binding.drawerSheet
+        val shown = tabs.visibility == View.VISIBLE
+        val below = sheet.indexOfChild(tabs) > sheet.indexOfChild(binding.drawerListContainer)
+        (tabs.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
+            val top = if (below) 0 else endPad
+            val bottom = if (below) endPad else 0
+            if (lp.topMargin != top || lp.bottomMargin != bottom) {
+                lp.topMargin = top
+                lp.bottomMargin = bottom
+                tabs.layoutParams = lp
+            }
+        }
+        return Pair(if (shown && !below) 0 else endPad, if (shown && below) 0 else endPad)
     }
 
     // The recents row scrolls away with the app list rather than sitting
@@ -565,6 +837,7 @@ class DrawerController(
         // back from the pool, and the rows coming in inflated new ones.
         binding.drawerRecycler.itemAnimator = null
         binding.drawerRecycler.addOnScrollListener(newScrollKeyboardHider())
+        watchGridHeight()
         // Pages are cut to the pager's height (syncPages), which can change
         // after the cut; posted, so the re-cut isn't made inside a layout.
         binding.drawerPager.addOnLayoutChangeListener { pager, _, top, _, bottom, _, oldTop, _, oldBottom ->
@@ -590,6 +863,10 @@ class DrawerController(
                         binding.drawerSearch.hasFocus()
                     ) {
                         hideKeyboard()
+                    }
+                    // A swipe can take a spare page; the next is built now.
+                    if (state == androidx.viewpager2.widget.ViewPager2.SCROLL_STATE_IDLE && spareTiles > 0) {
+                        stockSparePages(spareTiles)
                     }
                 }
             }
@@ -758,6 +1035,7 @@ class DrawerController(
                 val slide = !rebuildingTabs && shownTabIndex >= 0 && direction != 0
                 swipeDirection = 0
                 shownTabIndex = tab.position
+                if (selectedTab == null) snapshotAllHeader()
                 selectedTab = tab.tag
                 // Another tab's list replaces this one outright, from its top.
                 submit(replace = true)
@@ -847,6 +1125,8 @@ class DrawerController(
     // scroll parked. Shared by open() and the finger pull.
     private fun prepareContent(prefs: LauncherPrefs) {
         dateButton?.text = SearchBarButtons.dateText(context)
+        // Neighbour and spare pages for the paged style (stockSparePages).
+        if (spareTiles > 0) stockSparePages(spareTiles)
         // Usage orders shift with every launch; those changes no longer
         // re-emit state, so refresh the ordering as the drawer opens.
         val byUsage = prefs.drawerSort == DrawerSort.MOST_USED || prefs.drawerSort == DrawerSort.RECENTLY_USED
@@ -990,6 +1270,25 @@ class DrawerController(
     fun pullTo(distance: Float) {
         if (!isPulling) return
         setProgress((pullBase + distance / sheetHeight()).coerceIn(0f, 1f))
+    }
+
+    // A swipe down on the open sheet, as a pull run backwards: the sheet
+    // rides the finger from fully open, and endPull settles it either way.
+    // The paged style's (newPageSwipeClose); the other styles' lists close
+    // through the sheet behavior. Zoom and Fade have no position to hold, so
+    // the swipe closes them outright, as Back does.
+    fun beginClosePull(): Boolean {
+        val open = isVisible && !isPulling && !isClosing
+        if (open) hideKeyboard()
+        val slides = open && transition == DrawerTransition.SLIDE_UP
+        if (open && !slides) hide()
+        if (slides) {
+            isPulling = true
+            pullBase = 1f
+            binding.drawerSheet.animate().cancel()
+            progressAnimator?.cancel()
+        }
+        return slides
     }
 
     // velocityY in px/s, negative = upward. A fling decides; otherwise the
@@ -1744,6 +2043,33 @@ class DrawerController(
     private fun submit(replace: Boolean = false) {
         val prefs = viewModel.state.value.prefs
         val tab = selectedTab
+        val content = tabContent(tab, prefs)
+        adapter.emptyState = content.emptyState
+        val section = tab == null && privateSectionActive(prefs)
+        if (section) updatePrivateSection()
+        adapter.setPrivateSection(
+            if (section) privateSection.root else null,
+            if (section) viewModel.privateApps() else emptyList()
+        )
+        adapter.submit(content.apps, content.folders, prefs.drawerFoldersFirst, listOrder(prefs), replace)
+        revealPrivateSectionIfDue()
+        // The first apps make a tile measurable.
+        if (adapter.tileHeightPx == 0) refreshGridRows(prefs)
+        updatePrivateBar()
+        updateWorkViews()
+        syncPages()
+        updateFrequentRow()
+    }
+
+    private class TabContent(
+        val apps: List<LaunchableApp>,
+        val folders: List<AppDrawerAdapter.FolderEntry>,
+        val emptyState: AppDrawerAdapter.EmptyState?
+    )
+
+    // What a tab lists: the drawer's list for the tab showing, and the
+    // neighbour beside it while a swipe moves the list (bindTabPeek).
+    private fun tabContent(tab: Any?, prefs: LauncherPrefs): TabContent {
         // FOLDER-type groups render on the All (or Personal) list and in the
         // tabs that hold them (TabFolders); a tab that takes its apps out of
         // the main list takes its folders too.
@@ -1780,7 +2106,7 @@ class DrawerController(
                 "${it.userSerial}/${it.packageName}/${it.className}" in excluded
             }
         }
-        adapter.emptyState = (tab as? DrawerGroup)?.let { group ->
+        val emptyState = (tab as? DrawerGroup)?.let { group ->
             AppDrawerAdapter.EmptyState(
                 binding.root.context.getString(R.string.drawer_tab_empty),
                 binding.root.context.getString(R.string.select_apps),
@@ -1788,20 +2114,7 @@ class DrawerController(
                 withAlpha(Styles.resolve(binding.root.context, prefs).of(SurfaceId.DRAWER).text, TAB_TEXT_ALPHA)
             ) { onSelectTabApps(storedTab(group)) }
         }
-        val section = tab == null && privateSectionActive(prefs)
-        if (section) updatePrivateSection()
-        adapter.setPrivateSection(
-            if (section) privateSection.root else null,
-            if (section) viewModel.privateApps() else emptyList()
-        )
-        adapter.submit(apps, folders, prefs.drawerFoldersFirst, listOrder(prefs), replace)
-        revealPrivateSectionIfDue()
-        // The first apps make a tile measurable.
-        if (adapter.tileHeightPx == 0) refreshGridRows(prefs)
-        updatePrivateBar()
-        updateWorkViews()
-        syncPages()
-        updateFrequentRow()
+        return TabContent(apps, folders, emptyState)
     }
 
     private fun listOrder(prefs: LauncherPrefs): AppDrawerAdapter.Order =
@@ -1841,11 +2154,9 @@ class DrawerController(
         // The icon box the list under it draws (AppDrawerAdapter.sizeIcon):
         // the style's base icon at the drawer's icon scale, kept inside one
         // column, so the row's icons match the list's at any size.
-        val baseDp = if (currentStyle == DrawerStyle.VERTICAL_LIST) ROW_ICON_DP else TILE_ICON_DP
-        val iconSizePx = (context.dp(baseDp) * iconScale(prefs)).toInt()
-            .coerceAtMost((gridWidthPx() / columns - context.dp(TILE_SIDE_PADDING_DP)).coerceAtLeast(1))
+        val (iconSizePx, labelScale) = frequentRowSizes(prefs, columns)
         val key = apps.joinToString { "${it.userSerial}/${it.packageName}/${it.className}" } +
-            "|$columns|$textColor|$lastIconGeneration|$iconSizePx|${styleKey(prefs)}"
+            "|$columns|$textColor|$lastIconGeneration|$iconSizePx|$labelScale|${styleKey(prefs)}"
         if (key == frequentRowKey) return
         frequentRowKey = key
         // Long-pressed, each is a drawer icon like any other: its menu, and a
@@ -1876,6 +2187,7 @@ class DrawerController(
         }
         val look = FrequentAppsRowView.CellLook(iconSizePx) { label ->
             LabelStyler.apply(label, prefs, onWallpaper = false, context = LabelContext.DRAWER)
+            if (labelScale != 1f) label.setTextSize(TypedValue.COMPLEX_UNIT_PX, label.textSize * labelScale)
             label.visibility = if (prefs.drawerLabels) View.VISIBLE else View.GONE
         }
         binding.drawerFrequentRow.bindLabeled(entries, textColor, columns, sidePaddingDp = 0, look = look)
@@ -1886,7 +2198,7 @@ class DrawerController(
     private fun styleKey(prefs: LauncherPrefs): String =
         listOf(
             prefs.labelSize, prefs.labelColor, prefs.labelShadow, prefs.labelFont,
-            prefs.labelSingleLine, prefs.labelConfig, prefs.drawerLabels,
+            prefs.labelSingleLine, prefs.labelEvenRows, prefs.labelConfig, prefs.drawerLabels,
             prefs.badges, prefs.badgeStyle, prefs.badgeCounts, prefs.badgeApps,
             prefs.badgeColor, prefs.badgePosition, prefs.badgeScale, prefs.badgeTextColor,
             prefs.badgeCornerRadius, prefs.badgeOutline, prefs.badgeOnCorner
@@ -1900,6 +2212,21 @@ class DrawerController(
     // The strip and its rule are one unit: a bare divider above the list
     // reads as a stray line. The list's sort button shows with or without
     // them (list: no query is filtering the list).
+    // The top row's icon box and label scale. With Rows set, a short row
+    // shrinks the grid's icons and labels (DrawerTileFit); the row takes the
+    // same fit, or it stood over the list with bigger icons than the apps
+    // under it (#268).
+    private fun frequentRowSizes(prefs: LauncherPrefs, columns: Int): Pair<Int, Float> {
+        val tileLook = if (currentStyle == DrawerStyle.VERTICAL_GRID) adapter.tileLook(context) else null
+        if (tileLook != null) {
+            return (tileLook.iconPx * tileLook.fit.iconScale).roundToInt().coerceAtLeast(1) to tileLook.fit.labelScale
+        }
+        val baseDp = if (currentStyle == DrawerStyle.VERTICAL_LIST) ROW_ICON_DP else TILE_ICON_DP
+        val iconSizePx = (context.dp(baseDp) * iconScale(prefs)).toInt()
+            .coerceAtMost((gridWidthPx() / columns - context.dp(TILE_SIDE_PADDING_DP)).coerceAtLeast(1))
+        return iconSizePx to 1f
+    }
+
     private fun setFrequentRowVisible(prefs: LauncherPrefs, visible: Boolean, list: Boolean) {
         binding.drawerFrequentRow.visibility = if (visible) View.VISIBLE else View.GONE
         sortBars.show(prefs, topRow = visible, list = list)
@@ -1925,6 +2252,7 @@ class DrawerController(
         } else {
             if (header.parent === sheet) sheet.removeView(header)
             adapter.setHeader(if (headerVisible) header else null)
+            if (!headerVisible) recordHeaderHeight(0)
         }
     }
 
@@ -2047,6 +2375,7 @@ class DrawerController(
         val nothingToTab = tabsOff || (groups.isEmpty() && !workTab)
         if (nothingToTab && !privateTab) {
             tabs.visibility = View.GONE
+            applyInsetPadding()
             shownTabIndex = -1
             if (selectedTab != null) {
                 selectedTab = null
@@ -2056,6 +2385,7 @@ class DrawerController(
         }
 
         tabs.visibility = View.VISIBLE
+        applyInsetPadding()
         // Added unselected: the one-argument addTab selects the first tab
         // it adds, and the listener then overwrote selectedTab mid-rebuild,
         // so every rebuild landed on the default tab.
@@ -2094,6 +2424,7 @@ class DrawerController(
         }
         shownTabIndex = target
         selectedTab = tabs.getTabAt(target)?.tag
+        if (tabSwipeable()) peekList ?: newTabPeek()
     }
 
     // Reconfigures layout manager, cell sizing, background, and scrubber when
@@ -2268,8 +2599,9 @@ class DrawerController(
         )
         dateButton = null
         actionButtons.forEach { button ->
-            val view = SearchBarButtons.view(context, button, resolvedField.text) {
-                SearchBarButtons.run(context, button)
+            lateinit var view: View
+            view = SearchBarButtons.view(context, button, resolvedField.text) {
+                SearchBarButtons.run(view, button, viewModel.state.value.prefs)
             }
             view.tag = actionTag
             val size = (SearchBarButtons.BUTTON_DP * density).toInt()
@@ -2470,6 +2802,7 @@ class DrawerController(
                 overScrollMode = View.OVER_SCROLL_NEVER
                 clipToPadding = false
                 addOnItemTouchListener(newPullToSearchListener())
+                addOnItemTouchListener(newPageSwipeClose())
                 addOnScrollListener(newScrollKeyboardHider())
             }
             return PageHolder(recycler)
@@ -2481,6 +2814,11 @@ class DrawerController(
             PageTransformers.resetTransforms(holder.itemView)
             holder.bind(pages[position % pages.size], columns)
         }
+
+        // A page put away in the pool hands its tiles to its own tile pool
+        // now. Left on it, the next page bound into it inflated a fresh set:
+        // the old ones only reached the pool after that layout (#340).
+        override fun onViewRecycled(holder: PageHolder) = holder.releaseTiles()
     }
 
     private inner class PageHolder(private val recycler: RecyclerView) :
@@ -2503,9 +2841,74 @@ class DrawerController(
             lastDisplay?.let { pageAdapter.setDisplay(it.first, it.second, it.third) }
             pageAdapter.submitPage(items)
         }
+
+        fun releaseTiles() {
+            if (recycler.childCount > 0) recycler.swapAdapter(pageAdapter, true)
+        }
+
+        // See stockSparePages.
+        fun stockTile(target: Int): Boolean = pageAdapter.stockTile(recycler, target)
     }
 
     private val pagerAdapter by lazy { DrawerPagerAdapter() }
+
+    // The pages beside the one in view are built and bound while it sits
+    // still, as the home pager's are. Built on demand, the next page
+    // inflated a whole page of tiles on the swipe's first frame, and with
+    // more icons than the icon cache holds, each one rendered after the page
+    // had already slid in: a page of blank icons until the swipe ended
+    // (#340). Spare pages, their tiles inflated, wait in the pager's pool for
+    // the pages a swipe brings in. Both are built while the main thread is
+    // idle, a tile at a time, as the list's spare tiles are
+    // (AppDrawerAdapter.prefillPool), and the neighbours only once the
+    // drawer has settled open: the pager has no pages before the first open,
+    // and binding two then slowed it.
+    private var sparePage: PageHolder? = null
+    private var stockingSpares = false
+    private var spareTiles = 0
+
+    private fun stockSparePages(tiles: Int) {
+        spareTiles = tiles
+        val outer = binding.drawerPager.getChildAt(0) as? RecyclerView ?: return
+        if (stockingSpares) return
+        stockingSpares = true
+        android.os.Looper.myQueue().addIdleHandler {
+            val more = currentStyle == DrawerStyle.PAGED_GRID && outer.isAttachedToWindow &&
+                outer.adapter === pagerAdapter && (stockSpareStep(outer) || !bindNeighbours())
+            if (!more) {
+                stockingSpares = false
+                sparePage = null
+            }
+            more
+        }
+    }
+
+    // One tile into the spare page being built, or that page into the pool
+    // once full. False when the pool holds enough spares.
+    private fun stockSpareStep(outer: RecyclerView): Boolean {
+        val pool = outer.recycledViewPool
+        val page = sparePage
+            ?: if (pool.getRecycledViewCount(PAGE_TYPE) < SPARE_PAGES) {
+                pagerAdapter.createViewHolder(outer, PAGE_TYPE).also { sparePage = it }
+            } else {
+                return false
+            }
+        if (!page.stockTile(spareTiles)) {
+            pool.putRecycledView(page)
+            sparePage = null
+        }
+        return sparePage != null || pool.getRecycledViewCount(PAGE_TYPE) < SPARE_PAGES
+    }
+
+    // False to wait: the drawer is still opening. A closed drawer gives up;
+    // the next open asks again (prepareContent).
+    private fun bindNeighbours(): Boolean {
+        val pager = binding.drawerPager
+        val settled = isExpanded && !isPulling && progressAnimator == null && progress >= 1f
+        if (settled && pager.offscreenPageLimit != 1) pager.offscreenPageLimit = 1
+        return settled || !isVisible
+    }
+
     // The rows per page of the last cut: the pager's height can change after
     // it (the header above it fills in on the first open, the tab bar comes
     // and goes), and a pager that now fits a different count is cut again.
@@ -2547,6 +2950,7 @@ class DrawerController(
         if (pagerAdapter.infinite && pages.size > 1 && (wasEmpty || pager.currentItem == 0)) {
             pager.setCurrentItem(pages.size * (INFINITE_LOOPS / 2), false)
         }
+        if (pages.size > 1) stockSparePages(perPage)
     }
 
     // Rows a page holds. 0 keeps the original derive-from-height behavior. A
@@ -2572,7 +2976,7 @@ class DrawerController(
         if (currentStyle != DrawerStyle.VERTICAL_GRID) return
         val recycler = binding.drawerRecycler
         val rows = prefs.drawerRows
-        val height = recycler.height - recycler.paddingTop - recycler.paddingBottom
+        val height = gridRowsHeight()
         if (height > 0) IconFitRoom.drawerHeightPx = height
         val measured = if (rows > 0 && height > 0) adapter.measureTile(recycler) else null
         val content = measured?.get(0) ?: 0
@@ -2587,6 +2991,42 @@ class DrawerController(
         adapter.tileContentPx = content
         adapter.tileCompactPx = compact
         adapter.notifyItemRangeChanged(0, adapter.itemCount)
+        // The top row takes the tiles' fit (updateFrequentRow).
+        frequentRowKey = null
+        updateFrequentRow()
+    }
+
+    // The height the rows share out. A keyboard pushing the list up (a
+    // search field at the bottom, or the lifted row before API 30) shrank
+    // every row while it showed, and they stayed shrunk once it went
+    // (#268): the rows take the height the list has without it.
+    private fun gridRowsHeight(): Int {
+        val recycler = binding.drawerRecycler
+        val laidOut = recycler.height - recycler.paddingTop - recycler.paddingBottom
+        gridInnerHeightPx = laidOut
+        val keyboardUp = imeVisible || keyboardHeight > 0 || searchRowLifted
+        if (!keyboardUp && laidOut > 0) keyboardFreeHeightPx = laidOut
+        return if (keyboardUp && keyboardFreeHeightPx > 0) keyboardFreeHeightPx else laidOut
+    }
+
+    // The list's height inside its padding when refreshGridRows last ran,
+    // and the last one taken with no keyboard up.
+    private var gridInnerHeightPx = 0
+    private var keyboardFreeHeightPx = 0
+
+    // The rows share out the list's height, so they follow it: insets,
+    // tab and private bars, the window. A refresh only ran on a setting
+    // change before, so a height taken mid-change stayed until the next
+    // one, a sort change for instance (#268).
+    private fun watchGridHeight() {
+        val recycler = binding.drawerRecycler
+        recycler.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            val inner = recycler.height - recycler.paddingTop - recycler.paddingBottom
+            if (inner > 0 && inner != gridInnerHeightPx && currentStyle == DrawerStyle.VERTICAL_GRID) {
+                gridInnerHeightPx = inner
+                recycler.post { refreshGridRows(viewModel.state.value.prefs) }
+            }
+        }
     }
 
     private fun pageRows(prefs: LauncherPrefs): Int {
@@ -2645,7 +3085,6 @@ class DrawerController(
         const val TAB_SLIDE_FRACTION = 0.25f
         const val TAB_SLIDE_MS = 220L
         // A swiped-to tab's list fades up from here as it settles.
-        const val TAB_DRAG_START_ALPHA = 0.5f
         const val FAST_SCROLLER_FADE_MS = 150L
         // The Bubble tab type's pill: fully round, 6dp inside the bar's
         // height at top and bottom.
@@ -2658,11 +3097,17 @@ class DrawerController(
         fun withAlpha(color: Int, alpha: Int): Int = androidx.core.graphics.ColorUtils.setAlphaComponent(color, alpha)
         // Repeats of the real page list that stand in for a wrap-around.
         const val INFINITE_LOOPS = 200
+        // The pager's one view type, and how many built pages wait in its
+        // pool: the pages it holds at rest and in a swipe (the one in view,
+        // its neighbours, the next one in) come out of these.
+        const val PAGE_TYPE = 0
+        const val SPARE_PAGES = 3
         const val TRANSITION_MS = DrawerOpenCurve.IN_PLACE_MS
         const val SLIDE_MS = DrawerOpenCurve.SLIDE_MS
         // The search window's plate opens in 160 ms; the desktop goes with it.
         const val SEARCH_HOLD_MS = 160L
         const val ZOOM_FROM = DrawerOpenCurve.ZOOM_FROM
         const val PULL_TO_SEARCH_DP = 56f
+        const val VELOCITY_UNITS_MS = 1000
     }
 }
